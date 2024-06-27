@@ -230,6 +230,8 @@ void DepGraph::compile_all() {
 
     #pragma omp parallel for
     for (int i = 0; i < node_vec.size(); i++) {
+        string output = "";
+
         Key key = node_vec[i].first;
         Node file = node_vec[i].second;
 
@@ -237,7 +239,7 @@ void DepGraph::compile_all() {
             continue;
 
         // Find dependencies
-        cout << "Processing file: " << file.path << "\n";
+        output += format("Processing file: {}\n", file.path.string());
         file_count += 1;
         KeySet *deps = new KeySet{};
         naive_deps(key, Include("<>"), deps);
@@ -253,25 +255,27 @@ void DepGraph::compile_all() {
 
         // Compile the file
         string command = format(
-            "clang -c {} {} -emit-llvm -o -",
+            "clang -c {} {} -emit-llvm -o - 2> /dev/null",
             file.path.string(),
             includes);
 
         auto result = run_process(command);
         if (result.second != 0) {
             error_count += 1;
-            cout << "failed" << "\n";
+            output += format("failed\n");
         } else {
-            cout << "success" << "\n";
+            output += format("success\n");
         }
 
         delete deps;
+        cout << output;
     }
 
     // Print statistics
-    cout << "Total files: " << file_count << "\n";
-    cout << "# Errors:    " << error_count
-         << " (" << static_cast<float>(error_count) / file_count * 100.0 << "%)\n";
+    float prop = static_cast<float>(error_count) / file_count * 100.0;
+    cout << format("Total files: {:5}\n", file_count);
+    cout << format("Successful:  {:5} ({:5.1f}%)\n", file_count - error_count, 100.0 - prop);
+    cout << format("Errors:      {:5} ({:5.1f}%)\n", error_count, prop);
 }
 
 }
