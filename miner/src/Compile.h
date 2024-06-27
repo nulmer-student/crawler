@@ -2,9 +2,10 @@
 #define COMPILE_H_
 
 #include "Deps.h"
+
 #include <format>
+#include <sstream>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 using namespace std;
@@ -14,12 +15,6 @@ namespace Miner {
 void compile_all(DepGraph dg);
 
 class Compiler;
-
-// Result of a single compilation
-struct CompileResult {
-    bool success;
-    string output;
-};
 
 // =============================================================================
 // Actions
@@ -113,13 +108,20 @@ public:
     }
 };
 
+// Result of a single compilation
+struct CompileResult {
+    bool success;
+    vector<Match> matches;
+};
+
 // Compiles a single file, checking all possible header choices:
 class Compiler {
 public:
-    Compiler(DepGraph *dg, Node root) : dg(dg), root(root){};
+    Compiler(DepGraph *dg, Node root) : dg(dg), root(root){ stringstream out; };
     CompileResult run();
 
     void insert_parent(Key a, Key b);
+    stringstream &get_output();
 
 private:
     DepGraph *dg;   // File dependency graph
@@ -146,6 +148,9 @@ private:
     void pop();
     void push(Action *action);
     string dump_stack();
+
+    // Private output stream
+    stringstream out;
 };
 
 }

@@ -15,8 +15,11 @@ namespace Miner {
 
 void compile_all(DepGraph dg) {
     // Store statistics
-    int file_count = 0;
+    int file_count  = 0;
     int error_count = 0;
+
+    int vec_count = 0;
+    int si_count  = 0;
 
     // Copy the nodes into a vector for OpenMP
     vector<pair<Key, Node>> node_vec;
@@ -33,22 +36,56 @@ void compile_all(DepGraph dg) {
         #pragma omp atomic
         file_count += 1;
 
-        // Compile the file
-        Compiler c = Compiler(&dg, node_vec[i].second);
-        CompileResult result = c.run();
-        cout << result.output;
+        Node file = node_vec[i].second;
 
-        // Update statistics
-        if (!result.success)
+        try {
+            // Compile the file
+            Compiler c = Compiler(&dg, file);
+            CompileResult result = c.run();
+
+            // Print all associated output
+            cout << c.get_output().str();
+
+            // Update statistics
+            if (!result.success)
+                #pragma omp atomic
+                error_count += 1;
+
+            // Update match count
+            int v_local  = 0;
+            int si_local = 0;
+            for (auto m : result.matches) {
+                if (m.scalar != 0)
+                    si_local += 1;
+
+                v_local += 1;
+            }
+
+            #pragma opm atomic
+            vec_count += v_local;
+            #pragma opm atomic
+            si_count += si_local;
+        }
+
+        // If any error occurs, skip this file
+        catch (...) {
+            cout << format("WARN: file '{}' failed", file.path.string());
             #pragma omp atomic
             error_count += 1;
+        }
     }
 
     // Print statistics
     float prop = static_cast<float>(error_count) / file_count * 100.0;
+    cout << "\n============================================================\n";
     cout << format("Total files: {:5}\n", file_count);
     cout << format("Successful:  {:5} ({:5.1f}%)\n", file_count - error_count, 100.0 - prop);
     cout << format("Errors:      {:5} ({:5.1f}%)\n", error_count, prop);
+
+    float v_prop = static_cast<float>(si_count) / vec_count * 100;
+    cout << "\n============================================================\n";
+    cout << format("Vector Opps: {:5}\n", vec_count);
+    cout << format("SI count:    {:5} ({:5.1f}%)\n", si_count, v_prop);
 }
 
 // =============================================================================
@@ -105,7 +142,14 @@ bool Many::next() {
 // Compiler
 // =============================================================================
 
+stringstream &Compiler::get_output() {
+    return this->out;
+}
+
 CompileResult Compiler::run() {
+    out << "\nCompiling file: " << this->root.path << "\n";
+    out << "============================================================\n";
+
     // Initialize
     this->stack = vector<Action *>{};
     this->push(new Start(this->root));
@@ -324,8 +368,8 @@ Node Compiler::parent(Node current) {
 
 CompileResult Compiler::compile_one(Node file, Keys includes) {
     // Find dependencies
-    string output = "";
-    output += format("Processing file: {}\n", file.path.string());
+    out << "\n";
+    out << format("Attempt for: {}\n", file.path.string());
 
     // Format includes
     string str_includes = "";
@@ -340,30 +384,24 @@ CompileResult Compiler::compile_one(Node file, Keys includes) {
         file.path.string(),
         str_includes);
 
-    output += command;
-    output += "\n";
+    out << command << "\n";
     ProcessResult result = run_process(command);
-    output += result.stdout;
+    out << result.stdout;
     // output += result.stderr;
 
     // Parse stderr to find vectorization opportunities
-    vector<Match> rem = parse_remarks(result.stderr);
-
-    for (auto r : rem) {
-        output += r.str();
-        output += "\n";
-    }
+    vector<Match> matches = parse_remarks(result.stderr);
 
     // Set based on compilation pass/fail
     auto success = true;
     if (result.exit_code != 0) {
-        output += format("failed\n");
+        out << format("failed\n");
         success = false;
     } else {
-        output += format("success\n");
+        out << format("success\n");
     }
 
-    return CompileResult(success, output);
+    return CompileResult(success, matches);
 }
 
 vector<Match> Compiler::parse_remarks(string input) {

@@ -163,7 +163,7 @@ Keys DepGraph::find_dirs(vector<KeyInc> dirs) {
 
     // Add each directory to the set
     for (auto d : dirs) {
-        // Don't include system headers
+        // FIXME: Don't include system headers
         if (d.inc.type == IncludeType::System)
             continue;
 
