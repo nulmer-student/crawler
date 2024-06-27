@@ -6,6 +6,7 @@
 #include <iostream>
 #include <regex>
 #include <sstream>
+#include <vector>
 
 #define CLANG_PATH "/home/nju/.opt/scalar/llvm-bin/bin/clang"
 
@@ -19,6 +20,7 @@ void compile_all(DepGraph dg) {
     // Copy the nodes into a vector for OpenMP
     vector<pair<Key, Node>> node_vec;
     for (auto i = dg.nodes.begin(); i != dg.nodes.end(); i++) {
+        // Only copy cc files
         if (i->second.path.string().back() != 'c')
             continue;
         node_vec.push_back(*i);
@@ -52,25 +54,45 @@ void compile_all(DepGraph dg) {
 // =============================================================================
 
 CompileResult Compiler::run() {
-    // return CompileResult(true, "");
-    return compile_one(this->root);
-}
-
-CompileResult Compiler::compile_one(Node file) {
-    string output = "";
-
-    // Find dependencies
-    output += format("Processing file: {}\n", file.path.string());
-    KeySet *deps = new KeySet{};
-    dg->naive_deps(file.path, Include("<>"), deps);
+    // Initialize the choice stack
+    this->stack = vector<Action *>{};
+    this->push(new Start(this->root));
 
     // Get the include directories
+    KeySet *deps = new KeySet{};
+    dg->naive_deps(this->root.path, Include("<>"), deps);
     Keys dirs = dg->find_dirs(deps);
 
+    // Compile the file
+    CompileResult result = compile_one(this->root, dirs);
+    delete deps;
+
+    return result;
+}
+
+Action *Compiler::pop() {
+    Action *last = this->peek();
+    this->stack.pop_back();
+    return last;
+}
+
+Action *Compiler::peek() {
+    return this->stack.back();
+}
+
+void Compiler::push(Action *action) {
+    this->stack.push_back(action);
+}
+
+CompileResult Compiler::compile_one(Node file, Keys includes) {
+    // Find dependencies
+    string output = "";
+    output += format("Processing file: {}\n", file.path.string());
+
     // Format includes
-    string includes = "";
-    for (auto ii = dirs.begin(); ii != dirs.end(); ii++) {
-        includes += "-I" + ii->string() + " ";
+    string str_includes = "";
+    for (auto ii = includes.begin(); ii != includes.end(); ii++) {
+        str_includes += "-I" + ii->string() + " ";
     }
 
     // Compile the file
@@ -78,10 +100,13 @@ CompileResult Compiler::compile_one(Node file) {
         "{} -c {} {} -o /dev/null -emit-llvm -O3 -Rpass=loop-vectorize",
         CLANG_PATH,
         file.path.string(),
-        includes);
+        str_includes);
 
+    output += command;
+    output += "\n";
     ProcessResult result = run_process(command);
     output += result.stdout;
+    // output += result.stderr;
 
     // Parse stderr to find vectorization opportunities
     vector<Match> rem = parse_remarks(result.stderr);
@@ -100,7 +125,6 @@ CompileResult Compiler::compile_one(Node file) {
         output += format("success\n");
     }
 
-    delete deps;
     return CompileResult(success, output);
 }
 

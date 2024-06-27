@@ -10,9 +10,7 @@ namespace Miner {
 // Compile all cc files
 void compile_all(DepGraph dg);
 
-// =============================================================================
-// Complier
-// =============================================================================
+class Compiler;
 
 // Result of a single compilation
 struct CompileResult {
@@ -20,14 +18,34 @@ struct CompileResult {
     string output;
 };
 
+// =============================================================================
+// Actions
+// =============================================================================
+
 class Action {
 public:
-    Action(Node file) : file(file){};
-    Node file;
+    Action(Node dest) : dest(dest){};
+    Node dest;
+
+    // virtual void on_push(Compiler *cc) = 0;
+    // virtual void on_pop(Compiler *cc) = 0;
 };
 
-class Optional : Action {};
-class Required : Action {};
+class Start : public Action {
+};
+
+class Move : public Action {
+public:
+    Move(Node src, Node dest) : src(src), Action(dest){};
+    Node src;
+};
+
+class Foreward : public Move {};
+class Backward : public Move {};
+
+// =============================================================================
+// Complier
+// =============================================================================
 
 // Data associated with a single match
 class Match {
@@ -61,14 +79,17 @@ private:
     DepGraph *dg;   // File dependency graph
     Node root;      // File that we are compiling
 
-    // When searching, store the choices we have made
-    vector<Action*> choice_stack;
-
-    // Complie a single file
-    CompileResult compile_one(Node file);
-
-    // Extract vectorization opportunities
+    // Try to complie a single file
+    CompileResult compile_one(Node file, Keys includes);
+    // Extract vectorization opportunities from the compiler output
     vector<Match> parse_remarks(string input);
+
+    // When searching, store the choices we have made
+    vector<Action *> stack;
+    Action *pop();
+    Action *peek();
+    void push(Action *action);
+
 };
 
 }
