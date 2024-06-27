@@ -29,8 +29,7 @@ void compile_all(DepGraph dg) {
         node_vec.push_back(*i);
     }
 
-    // #pragma omp parallel for
-    // for (int i = 0; i < 1; i++) {
+    #pragma omp parallel for
     for (int i = 0; i < node_vec.size(); i++) {
         #pragma omp atomic
         file_count += 1;
@@ -88,13 +87,14 @@ CompileResult Compiler::run() {
     KeySet *deps = new KeySet{};
 
     while (true) {
-        cout << "Stack:\n" << this->dump_stack() << "\n";
-
         // Get the current location
         Action *action = this->peek();
         Node current = action->dest;
         Key path = current.path;
-        cout << path << "\n";
+
+        // cout << path << "\n";
+        // cout << "Stack:\n" << this->dump_stack() << "\n";
+        // cout << std::flush;
 
         // Get the children
         bool any = false;
@@ -125,9 +125,9 @@ CompileResult Compiler::run() {
                 none = false;
             }
 
-            // End if we are goind backward to the root & there are no more
-            // children
+            // If there are no children:
             if (none) {
+                // End if we are goind backward to the root
                 Backward *bk = dynamic_cast<Backward *>(this->peek());
                 if (bk != nullptr && bk->dest.path == this->root.path)
                     break;
@@ -136,6 +136,11 @@ CompileResult Compiler::run() {
 
         // If no children matched, go backward
         if (!any) {
+            // End if this is the start
+            Start *start = dynamic_cast<Start *>(this->peek());
+            if (start != nullptr)
+              break;
+
             Node parent = this->parent(current);
             this->push(new Backward(File(current), parent));
         }
