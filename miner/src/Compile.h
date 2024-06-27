@@ -39,6 +39,8 @@ public:
     virtual string str();
 };
 
+// Movement between nodes:
+
 class Move : public Action {
 public:
     Move(Node src, Node dest) : src(src), Action(dest){};
@@ -55,6 +57,11 @@ class Backward : public Move {
 public:
     Backward(Node src, Node dest) : Move(src, dest){};
     virtual string str();
+};
+
+// Choices
+
+class Choice : public Action {
 };
 
 // =============================================================================
@@ -101,14 +108,18 @@ private:
 
     // When searching, store the choices we have made
     vector<Action *> stack;
+
     using Ans = unordered_map<Key, Key, KeyHash, KeyEq>;
     Ans parents;
+    Node parent(Node current);
 
-    Action *pop();
+    void expand(KeySet *deps);
+    bool shrink(KeySet *deps);
+
     Action *peek();
+    void pop();
     void push(Action *action);
     string dump_stack();
-    Node parent(Node current);
 };
 
 }

@@ -82,9 +82,36 @@ CompileResult Compiler::run() {
     // Initialize
     this->stack = vector<Action *>{};
     this->push(new Start(this->root));
-    KeySet seen;
     this->parents = Ans{};
     KeySet *deps = new KeySet{};
+
+    CompileResult result;
+    while (true) {
+        // Expand the search tree from the current point
+        this->expand(deps);
+
+        // Try to compile the file
+        Keys include_dirs = dg->find_dirs(deps);
+        result = compile_one(this->root, include_dirs);
+
+        // Stop if compilation succeeds
+        if (result.success)
+            break;
+
+        // Otherwise backtrack to the last choice-point
+        deps->clear();
+        bool cont = this->shrink(deps);
+
+        if (!cont)
+            break;
+    }
+
+    delete deps;
+    return result;
+}
+
+void Compiler::expand(KeySet *deps) {
+    KeySet seen;
 
     while (true) {
         // Get the current location
@@ -92,9 +119,9 @@ CompileResult Compiler::run() {
         Node current = action->dest;
         Key path = current.path;
 
-        // cout << path << "\n";
-        // cout << "Stack:\n" << this->dump_stack() << "\n";
-        // cout << std::flush;
+        cout << path << "\n";
+        cout << "Stack:\n" << this->dump_stack() << "\n";
+        cout << std::flush;
 
         // Get the children
         bool any = false;
@@ -145,21 +172,39 @@ CompileResult Compiler::run() {
             this->push(new Backward(File(current), parent));
         }
     }
-
-    // Get the include directories
-    Keys dirs = dg->find_dirs(deps);
-
-    // Compile the file
-    CompileResult result = compile_one(this->root, dirs);
-    delete deps;
-
-    return result;
 }
 
-Action *Compiler::pop() {
-    Action *last = this->peek();
+bool Compiler::shrink(KeySet *deps) {
+    cout << "shrink" << "\n";
+
+    while (true) {
+        cout << this->dump_stack() << "\n";
+
+        Action *current = this->peek();
+
+        // If we have reached the start, there are no more choices
+        Start *start = dynamic_cast<Start *>(current);
+        if (start != nullptr)
+            return false;
+
+        // If we are at a choice point, return
+        Choice *choice = dynamic_cast<Choice *>(current);
+        if (choice != nullptr)
+            return true;
+
+        // Otherwise, remove the element
+        this->pop();
+    }
+}
+
+void Compiler::pop() {
+    // If this is a backword action, remove the parent
+    Backward *bw = dynamic_cast<Backward *>(this->peek());
+    if (bw != nullptr) {
+        this->parents.erase(bw->dest.path);
+    }
+
     this->stack.pop_back();
-    return last;
 }
 
 Action *Compiler::peek() {
