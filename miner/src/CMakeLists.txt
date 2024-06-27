@@ -3,6 +3,7 @@ add_executable(miner
   Util.cpp
   Deps.cpp
   Include.cpp
+  Compile.cpp
 )
 
 target_link_libraries(miner PRIVATE OpenMP::OpenMP_CXX)

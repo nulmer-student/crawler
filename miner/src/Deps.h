@@ -71,6 +71,9 @@ struct KeyEq {
     }
 };
 
+typedef unordered_set<KeyInc, KeyIncHash, KeyIncEq> KeySet ;
+typedef unordered_set<Key, KeyHash, KeyEq> Keys ;
+
 class DepGraph {
 public:
     DepGraph(filesystem::path);
@@ -83,21 +86,13 @@ public:
     void print_abbrev();
     void print_graph();
 
-    // FIXME: Move out of this class
-    void compile_all();
-
-private:
-    void compute_abbrev();
-    void insert_short_path(filesystem::path, Node);
-
-    using KeySet = unordered_set<KeyInc, KeyIncHash, KeyIncEq>;
     void naive_deps(Key current, Include inc, KeySet *found);
 
     // Find needed directories from include files
-    using Keys = unordered_set<Key, KeyHash, KeyEq>;
     Keys find_dirs(KeySet*);
     int path_length(Key);
 
+    // FIXME: Make these private & provide iterator
     // Nodes are repository files
     using Nodes = unordered_map<Key, Node, KeyHash, KeyEq>;
     Nodes nodes;
@@ -106,6 +101,10 @@ private:
     using IncMap = unordered_multimap<Include, Key, IncludeHash, IncludeEq>;
     using Edges  = unordered_map<Key, IncMap, KeyHash, KeyEq>;
     Edges edges;
+
+private:
+    void compute_abbrev();
+    void insert_short_path(filesystem::path, Node);
 
     // Map short include paths (eg #include for/bar.h) to full paths
     using Abbrev = unordered_map<filesystem::path, vector<File>>;

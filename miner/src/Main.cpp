@@ -1,7 +1,7 @@
 #include "Util.h"
 #include "Deps.h"
+#include "Compile.h"
 
-#include <iostream>
 #include <string>
 
 using namespace Miner;
@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
     dg.compute_dependencies();
 
     // Compile each cc file
-    dg.compile_all();
+    compile_all(dg);
 
     return 0;
 }

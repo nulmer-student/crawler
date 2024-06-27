@@ -2,7 +2,6 @@
 #include "Include.h"
 #include "Util.h"
 
-#include <format>
 #include <iostream>
 #include <filesystem>
 #include <unordered_map>
@@ -181,7 +180,7 @@ int DepGraph::path_length(Key path) {
     return count;
 }
 
-DepGraph::Keys DepGraph::find_dirs(KeySet *dirs) {
+Keys DepGraph::find_dirs(KeySet *dirs) {
     Keys acc;
 
     // Add each directory to the set
@@ -215,67 +214,4 @@ DepGraph::Keys DepGraph::find_dirs(KeySet *dirs) {
     return acc;
 }
 
-void DepGraph::compile_all() {
-    int file_count = 0;
-    int error_count = 0;
-
-
-    // Copy the nodes into a vector for OpenMP
-    vector<pair<Key, Node>> node_vec;
-    for (auto i = this->nodes.begin(); i != this->nodes.end(); i++) {
-        if (i->second.path.string().back() != 'c')
-            continue;
-        node_vec.push_back(*i);
-    }
-
-    #pragma omp parallel for
-    for (int i = 0; i < node_vec.size(); i++) {
-        string output = "";
-
-        Key key = node_vec[i].first;
-        Node file = node_vec[i].second;
-
-        if (file.path.string().back() != 'c')
-            continue;
-
-        // Find dependencies
-        output += format("Processing file: {}\n", file.path.string());
-        file_count += 1;
-        KeySet *deps = new KeySet{};
-        naive_deps(key, Include("<>"), deps);
-
-        // Get the include directories
-        Keys dirs = find_dirs(deps);
-
-        // Format includes
-        string includes = "";
-        for (auto ii = dirs.begin(); ii != dirs.end(); ii++) {
-            includes += "-I" + ii->string() + " ";
-        }
-
-        // Compile the file
-        string command = format(
-            "clang -c {} {} -emit-llvm -o - 2> /dev/null",
-            file.path.string(),
-            includes);
-
-        auto result = run_process(command);
-        if (result.second != 0) {
-            error_count += 1;
-            output += format("failed\n");
-        } else {
-            output += format("success\n");
-        }
-
-        delete deps;
-        cout << output;
-    }
-
-    // Print statistics
-    float prop = static_cast<float>(error_count) / file_count * 100.0;
-    cout << format("Total files: {:5}\n", file_count);
-    cout << format("Successful:  {:5} ({:5.1f}%)\n", file_count - error_count, 100.0 - prop);
-    cout << format("Errors:      {:5} ({:5.1f}%)\n", error_count, prop);
-}
-
-}
+} // namespace Miner
