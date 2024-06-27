@@ -1,5 +1,6 @@
 #include "Include.h"
 
+#include <filesystem>
 #include <iostream>
 
 using namespace std;
@@ -21,7 +22,14 @@ Include::Include(string input) {
     for (int i = 1; i < input.size() - 1; i++) {
         acc.push_back(input[i]);
     }
-    this->path = acc; // FIXME: Normalize the path
+    filesystem::path full = acc;
+
+    // Normalize the path (remove .. & .)
+    for (auto i = full.begin(); i != full.end(); i++) {
+        string str = i->string();
+        if (str != ".." && str != ".")
+            this->path /= *i;
+    }
 }
 
 } // namespace Miner
