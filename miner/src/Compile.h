@@ -2,6 +2,7 @@
 #define COMPILE_H_
 
 #include "Deps.h"
+#include <format>
 
 using namespace std;
 namespace Miner {
@@ -28,6 +29,28 @@ public:
 class Optional : Action {};
 class Required : Action {};
 
+// Data associated with a single match
+class Match {
+public:
+    Match(File file, int line, int column, int width, int interleave, int scalar)
+    : file(file), line(line), column(column), width(width),
+      interleave(interleave), scalar(scalar){};
+
+    // Location info
+    File file;
+    int line;
+    int column;
+
+    // Match info
+    int width;
+    int interleave;
+    int scalar;
+
+    string str() {
+        return format("{} {} {} {} {}", line, column, width, interleave, scalar);
+    }
+};
+
 // Compiles a single file, checking all possible header choices:
 class Compiler {
 public:
@@ -45,7 +68,7 @@ private:
     CompileResult compile_one(Node file);
 
     // Extract vectorization opportunities
-    string parse_remarks(string input);
+    vector<Match> parse_remarks(string input);
 };
 
 }

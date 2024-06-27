@@ -84,10 +84,11 @@ CompileResult Compiler::compile_one(Node file) {
     output += result.stdout;
 
     // Parse stderr to find vectorization opportunities
-    string rem = parse_remarks(result.stderr);
-    if (rem != "") {
-        output += "line, column, width, interleave, scalar\n";
-        output += rem;
+    vector<Match> rem = parse_remarks(result.stderr);
+
+    for (auto r : rem) {
+        output += r.str();
+        output += "\n";
     }
 
     // Set based on compilation pass/fail
@@ -103,7 +104,7 @@ CompileResult Compiler::compile_one(Node file) {
     return CompileResult(success, output);
 }
 
-string Compiler::parse_remarks(string input) {
+vector<Match> Compiler::parse_remarks(string input) {
     // Construct the pattern
     // FIXME: Make less fragile
     string pat = "";
@@ -118,19 +119,23 @@ string Compiler::parse_remarks(string input) {
     smatch m;
 
     // Search each line in the input for the pattern
-    string found = "";
+    vector<Match> acc;
     string line;
     istringstream str(input);
     while (getline(str, line)) {
         if (regex_search(line, m, pattern)) {
-            found += format(
-                "{}, {}, {}, {}, {}\n",
-                m[1].str(), m[2].str(),
-                m[3].str(), m[4].str(), m[5].str());
+            acc.push_back(Match(
+                this->root,
+                stoi(m[1].str()),
+                stoi(m[2].str()),
+                stoi(m[3].str()),
+                stoi(m[4].str()),
+                stoi(m[5].str())
+                ));
         }
     }
 
-    return found;
+    return acc;
 }
 
 
