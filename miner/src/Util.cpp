@@ -53,7 +53,6 @@ vector<filesystem::path> find_files(filesystem::path dir, string extension) {
 
 vector<string> find_includes(filesystem::path file) {
     // Load the file
-    cout << file << "\n";
     ifstream infile(file);
 
     if (!infile.is_open())
@@ -62,10 +61,9 @@ vector<string> find_includes(filesystem::path file) {
     // Look for #include on each line
     vector<string> acc;
     string line;
+    regex pattern("#include ([\"<][^\">]+[\">])");
+    smatch m;
     while (getline(infile, line)) {
-        regex pattern("#include ([\"<][^\">]+[\">])");
-        smatch m;
-
         if (regex_search(line, m, pattern)) {
             acc.push_back(m[1]);
         }

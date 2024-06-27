@@ -47,18 +47,26 @@ struct KeyEq {
 
 class DepGraph {
 public:
-    DepGraph();
+    DepGraph(filesystem::path);
     void insert_files(vector<Key>);
     void insert_node(Key, Node);
 
     void compute_dependencies();
+    void print_abbrev();
 
 private:
+    void compute_abbrev();
+    void insert_short_path(filesystem::path, Node);
+
     // Nodes are repository files
     unordered_map<Key, Node, KeyHash, KeyEq> nodes;
 
     // Edges are #include X declarations
     unordered_map<Key, vector<Edge>, KeyHash, KeyEq> edges;
+
+    // Map short include paths (eg #include for/bar.h) to full paths
+    unordered_map<filesystem::path, vector<File>> abbrev;
+    filesystem::path repo_dir;
 };
 
 }
