@@ -86,13 +86,13 @@ void DepGraph::compute_abbrev() {
 void DepGraph::compute_dependencies() {
     // Map possible short names to headers
     this->compute_abbrev();
-    this->print_abbrev();
 
-    // for (auto it = this->nodes.begin(); it != this->nodes.end(); it++) {
-    //     // Get the includes
-    //     File f = it->second;
-    //     vector<string> includes = find_includes(f.path);
-    // }
+    // For each file, add edges according to include declarations
+    for (auto it = this->nodes.begin(); it != this->nodes.end(); it++) {
+        // Get the includes
+        File f = it->second;
+        vector<Include> includes = find_includes(f.path);
+    }
 }
 
 }

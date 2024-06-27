@@ -1,4 +1,5 @@
 #include "Util.h"
+#include "Include.h"
 
 #include <cstdio>
 #include <fcntl.h>
@@ -51,7 +52,7 @@ vector<filesystem::path> find_files(filesystem::path dir, string extension) {
     return acc;
 }
 
-vector<string> find_includes(filesystem::path file) {
+vector<Include> find_includes(filesystem::path file) {
     // Load the file
     ifstream infile(file);
 
@@ -59,13 +60,13 @@ vector<string> find_includes(filesystem::path file) {
         throw runtime_error("File not found");
 
     // Look for #include on each line
-    vector<string> acc;
+    vector<Include> acc;
     string line;
     regex pattern("#include ([\"<][^\">]+[\">])");
     smatch m;
     while (getline(infile, line)) {
         if (regex_search(line, m, pattern)) {
-            acc.push_back(m[1]);
+            acc.push_back(Include(m[1]));
         }
     }
 
