@@ -2,10 +2,8 @@
 #include "Compile.h"
 #include "Deps.h"
 
-#include <cstddef>
 #include <format>
 #include <iostream>
-#include <iterator>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
@@ -29,7 +27,7 @@ void compile_all(DepGraph dg) {
         node_vec.push_back(*i);
     }
 
-    #pragma omp parallel for
+    // #pragma omp parallel for
     for (int i = 0; i < node_vec.size(); i++) {
         #pragma omp atomic
         file_count += 1;
@@ -78,7 +76,7 @@ string Many::str() {
     string acc = format("Many({}, {}", src.path.string(), dest.path.string());
     for (auto other : this->rest) {
         acc += ", ";
-        acc += other.path.string();
+        acc += other.key.string();
     }
     acc += ")";
 
@@ -94,8 +92,9 @@ bool Many::next() {
         return false;
 
     // Replace with a new destination
-    Node last = this->rest.back();
-    this->dest = last;
+    KeyInc last = this->rest.back();
+    this->dest = File(last.key);
+    this->include = last;
     this->rest.pop_back();
 
     return true;
@@ -130,6 +129,7 @@ CompileResult Compiler::run() {
                 include_dirs.push_back(fw->include);
         }
 
+        // NOTE: Remove this
         for (auto inc : include_dirs) {
             cout << inc.key << "\n";
         }
@@ -185,9 +185,9 @@ void Compiler::expand() {
                 this->seen.insert(i->second);
 
                 // Collect the choices
-                vector<Node> choices;
+                vector<KeyInc> choices;
                 for (auto choice = range.first; choice != range.second; ++choice) {
-                    choices.push_back(File(choice->second));
+                    choices.push_back(KeyInc(choice->second, choice->first));
                 }
 
                 // If there is only one choice, insert a Foreward()
@@ -204,16 +204,18 @@ void Compiler::expand() {
                 // Otherwise, insert a Many()
                 else {
                     // Select one possibility to use
-                    Node chosen = choices[choices.size() - 1];
+                    KeyInc chosen = choices[choices.size() - 1];
                     choices.pop_back();
 
                     // Insert the many
                     this->push(
                         new Many(
                             current,
+                            File(chosen.key),
                             chosen,
-                            KeyInc(i->second, i->first),
                             choices));
+
+                    break;
                 }
 
                 none = false;
@@ -291,9 +293,21 @@ void Compiler::push(Action *action) {
 
 string Compiler::dump_stack() {
     string acc = "";
+    string spc = "";
     for (Action *element : this->stack) {
+        Foreward *fw = dynamic_cast<Foreward *>(element);
+        if (fw != nullptr)
+            spc += "  ";
+        acc += spc;
         acc += element->str();
         acc += "\n";
+
+        Backward *bw = dynamic_cast<Backward *>(element);
+        if (bw != nullptr) {
+            spc.pop_back();
+            spc.pop_back();
+        }
+
     }
     return acc;
 }

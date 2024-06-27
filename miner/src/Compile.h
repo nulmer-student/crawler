@@ -66,7 +66,7 @@ public:
     virtual string str();
 };
 
-// Choices
+// Choices:
 
 class Choice : public Foreward {
 public:
@@ -79,10 +79,10 @@ public:
 
 class Many : public Choice {
 public:
-    Many(Node src, Node dest, KeyInc include, vector<Node> rest)
+    Many(Node src, Node dest, KeyInc include, vector<KeyInc> rest)
         : Choice(src, dest, include), rest(rest){};
     virtual string str();
-    vector<Node> rest;
+    vector<KeyInc> rest;
 
     virtual bool next();
 };
