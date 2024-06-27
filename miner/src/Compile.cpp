@@ -4,6 +4,8 @@
 
 #include <format>
 #include <iostream>
+#include <regex>
+#include <sstream>
 
 #define CLANG_PATH "/home/nju/.opt/scalar/llvm-bin/bin/clang"
 
@@ -28,8 +30,9 @@ void compile_all(DepGraph dg) {
         file_count += 1;
 
         // Compile the file
-        Compiler c = Compiler(&dg);
-        CompileResult result = c.compile_one(node_vec[i].second);
+        Compiler c = Compiler(&dg, node_vec[i].second);
+        CompileResult result = c.run();
+        cout << result.output;
 
         // Update statistics
         if (!result.success)
@@ -44,9 +47,40 @@ void compile_all(DepGraph dg) {
     cout << format("Errors:      {:5} ({:5.1f}%)\n", error_count, prop);
 }
 
+string parse_remarks(string input) {
+    // Construct the pattern
+    // FIXME: Make less fragile
+    string pat = "";
+    pat += "remark: vectorized loop \\(";
+    pat += "vectorization width: (\\d+),";
+    pat += " interleaved count: (\\d+),";
+    pat += " scalar interpolation count: (\\d+)";
+    pat += "\\)";
+
+    regex pattern(pat);
+    smatch m;
+
+    // Search each line in the input for the pattern
+    string found = "";
+    string line;
+    istringstream str(input);
+    while (getline(str, line)) {
+        if (regex_search(line, m, pattern)) {
+            found += format("{} {} {}\n", m[1].str(), m[2].str(), m[3].str());
+        }
+    }
+
+    return found;
+}
+
 // =============================================================================
 // Compiler
 // =============================================================================
+
+CompileResult Compiler::run() {
+    // return CompileResult(true, "");
+    return compile_one(this->root);
+}
 
 CompileResult Compiler::compile_one(Node file) {
     string output = "";
@@ -67,18 +101,22 @@ CompileResult Compiler::compile_one(Node file) {
 
     // Compile the file
     string command = format(
-        "{} -c {} {} -o /dev/null -emit-llvm",
-        // "{} -c {} {} -o /dev/null -emit-llvm -O3 -Rpass=loop-vectorize",
-        // CLANG_PATH,
-        "clang",
+        // "{} -c {} {} -o /dev/null -emit-llvm",
+        "{} -c {} {} -o /dev/null -emit-llvm -O3 -Rpass=loop-vectorize",
+        CLANG_PATH,
+        // "clang",
         file.path.string(),
         includes);
 
-    auto result = run_process(command);
-    output += result.first;
-    auto success = true;
+    ProcessResult result = run_process(command);
+    output += result.stdout;
 
-    if (result.second != 0) {
+    // Parse stderr to find vectorization opportunities
+    output += parse_remarks(result.stderr);
+
+    // Set based on compilation pass/fail
+    auto success = true;
+    if (result.exit_code != 0) {
         output += format("failed\n");
         success = false;
     } else {
@@ -86,9 +124,7 @@ CompileResult Compiler::compile_one(Node file) {
     }
 
     delete deps;
-    cout << output;
-
-    return CompileResult(success);
+    return CompileResult(success, output);
 }
 
 } // namespace Miner

@@ -6,22 +6,46 @@
 using namespace std;
 namespace Miner {
 
+// Compile all cc files
+void compile_all(DepGraph dg);
+
+// Extract the vectorization opportunities
+string parse_remarks(string input);
+
+// =============================================================================
+// Complier
+// =============================================================================
+
+// Result of a single compilation
 struct CompileResult {
     bool success;
+    string output;
 };
 
-// Compiles a single file, checking all possible header choices
+class Action {
+public:
+    Action(Node file) : file(file){};
+    Node file;
+};
+
+class Optional : Action {};
+class Required : Action {};
+
+// Compiles a single file, checking all possible header choices:
 class Compiler {
 public:
-    Compiler(DepGraph *dg) : dg(dg){};
-
-    CompileResult compile_one(Node file);
+    Compiler(DepGraph *dg, Node root) : dg(dg), root(root){};
+    CompileResult run();
 
 private:
-    DepGraph *dg;
-};
+    DepGraph *dg;   // File dependency graph
+    Node root;      // File that we are compiling
 
-void compile_all(DepGraph dg);
+    // When searching, store the choices we have made
+    vector<Action*> choice_stack;
+
+    CompileResult compile_one(Node file);
+};
 
 }
 

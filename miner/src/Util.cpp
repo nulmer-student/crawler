@@ -20,26 +20,46 @@ using namespace std;
 
 namespace Miner {
 
-pair<string, int> run_process(string command) {
+ProcessResult run_process(string command) {
+    // FIXME: Capture stderr in a non-stupid way
+    FILE *tmp = tmpfile();
+    filesystem::path tmp_path = filesystem::read_symlink(
+        filesystem::path("/proc/self/fd") / to_string(fileno(tmp))
+        );
+
+    // Append stderr redirect
+    command += format(" 2> '{}'", tmp_path.string());
+
     // Run the command
     FILE *fp = popen(command.c_str(), "r");
     if (fp == nullptr)
         std::runtime_error("Command failure");
 
-    // Extract output
-    int c;
-    string acc;
+    // Read in stdout
+    int c; string acc;
     while((c = fgetc(fp)) >= 0)
         acc += c;
 
+    // Read in stderr
+    ifstream err_file(tmp_path);
+    if (!err_file.is_open())
+        throw runtime_error("Tmp file not found");
+
+    string err; string line;
+    while (getline(err_file, line)) {
+        err += line;
+        err += "\n";    // geline removes newlines
+    }
+    err_file.close();
+
     int code = WEXITSTATUS(pclose(fp));
-    return pair(acc, code);
+    return ProcessResult(code, acc, err);
 }
 
 vector<filesystem::path> find_files(filesystem::path dir, string extension) {
     // Find files
     string command = format("find {} -name '*.{}'", dir.string(), extension);
-    string output = run_process(command).first;
+    string output = run_process(command).stdout;
 
     // Convert to a vector of strings
     string line;

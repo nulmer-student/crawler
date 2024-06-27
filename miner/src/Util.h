@@ -4,6 +4,8 @@
 #include "Include.h"
 
 #include <filesystem>
+#include <iostream>
+#include <streambuf>
 #include <string>
 #include <vector>
 
@@ -11,7 +13,15 @@ using namespace std;
 
 namespace Miner {
 
-pair<string, int> run_process(string command);
+// Hold the results of running a process
+struct ProcessResult {
+    int exit_code;
+    string stdout;
+    string stderr;
+};
+
+// Utility functions
+ProcessResult run_process(string command);
 vector<filesystem::path> find_files(filesystem::path dir, string extension);
 vector<Include> find_includes(filesystem::path file);
 
