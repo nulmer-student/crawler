@@ -1,11 +1,14 @@
 #ifndef DEPS_H_
 #define DEPS_H_
 
+#include "Include.h"
 #include "Util.h"
 
 #include <cstddef>
 #include <filesystem>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
 using namespace std;
 
@@ -51,21 +54,25 @@ public:
     void insert_files(vector<Key>);
     void insert_node(Key, Node);
 
+    void insert_edge(Key f1, Key f2, Include inc);
+
     void compute_dependencies();
     void print_abbrev();
+    void print_graph();
 
 private:
     void compute_abbrev();
     void insert_short_path(filesystem::path, Node);
 
-    // Nodes are repository files
-    unordered_map<Key, Node, KeyHash, KeyEq> nodes;
-
-    // Edges are #include X declarations
-    unordered_map<Key, vector<Edge>, KeyHash, KeyEq> edges;
+    // Graph data
+    using Nodes = unordered_map<Key, Node, KeyHash, KeyEq>;
+    using Edges = unordered_map<Key, vector<pair<Key, Include>>>;
+    Nodes nodes;    // Nodes are repository files
+    Edges edges;    // Edges are #include X declarations
 
     // Map short include paths (eg #include for/bar.h) to full paths
-    unordered_map<filesystem::path, vector<File>> abbrev;
+    using Abbrev = unordered_map<filesystem::path, vector<File>>;
+    Abbrev abbrev;
     filesystem::path repo_dir;
 };
 

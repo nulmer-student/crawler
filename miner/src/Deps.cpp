@@ -10,33 +10,16 @@ using namespace std;
 namespace Miner {
 
 // =============================================================================
-// Abbreviation Table:
+// Abbrev Table:
 // =============================================================================
 
-
-
-// =============================================================================
-// Dependency Graph:
-// =============================================================================
-
-DepGraph::DepGraph(filesystem::path dir) {
-    // Start with empty nodes & edges
-    unordered_map<Key, Node, KeyHash, KeyEq> nodes;
-    unordered_map<Key, vector<Edge>, KeyHash, KeyEq> edges;
-
-    // Empty abbrev table
-    unordered_map<filesystem::path, vector<File>> abbrev;
-    this->repo_dir = dir;
-}
-
-void DepGraph::insert_files(vector<Key> files) {
-    for (Key k : files) {
-        this->insert_node(k, File(k));
+void DepGraph::print_abbrev() {
+    for (auto i = this->abbrev.begin(); i != this->abbrev.end(); i++) {
+        cout << "Abbrev: " << i->first << "\n";
+        for (auto path : i->second) {
+            cout << "  " << path.path << "\n";
+        }
     }
-}
-
-void DepGraph::insert_node(Key k, Node n) {
-    this->nodes.insert({k, n});
 }
 
 void DepGraph::insert_short_path(filesystem::path k, Node v) {
@@ -48,15 +31,6 @@ void DepGraph::insert_short_path(filesystem::path k, Node v) {
     // Otherwise, create a new list
     else {
         this->abbrev.insert({k, {v}});
-    }
-}
-
-void DepGraph::print_abbrev() {
-    for (auto i = this->abbrev.begin(); i != this->abbrev.end(); i++) {
-        cout << "Abbrev: " << i->first << "\n";
-        for (auto path : i->second) {
-            cout << "  " << path.path << "\n";
-        }
     }
 }
 
@@ -83,6 +57,42 @@ void DepGraph::compute_abbrev() {
     }
 }
 
+// =============================================================================
+// Dependency Graph:
+// =============================================================================
+
+DepGraph::DepGraph(filesystem::path dir) {
+    // Start with empty nodes & edges
+    Nodes nodes;
+    Edges edges;
+
+    // Empty abbrev table
+    Abbrev abbrev;
+    this->repo_dir = dir;
+}
+
+void DepGraph::insert_files(vector<Key> files) {
+    for (Key k : files) {
+        this->insert_node(k, File(k));
+    }
+}
+
+void DepGraph::insert_node(Key k, Node n) {
+    this->nodes.insert({k, n});
+}
+
+void DepGraph::insert_edge(Key f1, Key f2, Include inc) {
+    // It it exists, add the edge to the list of edges
+    if (this->edges.find(f1) != this->edges.end()) {
+        this->edges[f1].push_back(pair(f2, inc));
+    }
+
+    // Otherwise, create a new list
+    else {
+        this->edges.insert({f1, {pair(f2, inc)}});
+    }
+}
+
 void DepGraph::compute_dependencies() {
     // Map possible short names to headers
     this->compute_abbrev();
@@ -92,7 +102,21 @@ void DepGraph::compute_dependencies() {
         // Get the includes
         File f = it->second;
         vector<Include> includes = find_includes(f.path);
+
+        for (auto inc : includes) {
+            // Skip headers that are not in the abbrev table
+            if (this->abbrev.find(inc.path) != this->abbrev.end())
+                continue;
+
+            // Add an edge to each possible full path
+            vector<File> possible = this->abbrev[inc.path];
+            for (auto p : possible) {
+                this->insert_edge(f.path, p.path, inc);
+            }
+        }
     }
+
+    this->print_graph();
 }
 
 }
