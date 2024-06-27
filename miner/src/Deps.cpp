@@ -93,19 +93,41 @@ void DepGraph::insert_edge(Key f1, Key f2, Include inc) {
     }
 }
 
+void DepGraph::print_graph() {
+    // Print out the nodes
+    for (auto i = this->nodes.begin(); i != this->nodes.end(); i++) {
+        cout << "Node: ("
+             << i->first.string() << ", "
+             << i->second.path.string()
+             << ")\n";
+    }
+
+    // Print out the edges
+    for (auto i = this->edges.begin(); i != this->edges.end(); i++) {
+        cout << "From: " << i->first.string() << "\n";
+        for (auto e : i->second) {
+            cout << "  To: "
+                 << e.first.string()
+                 << " ("
+                 << e.second.path.string()
+                 << ")\n";
+        }
+    }
+}
+
 void DepGraph::compute_dependencies() {
     // Map possible short names to headers
     this->compute_abbrev();
 
     // For each file, add edges according to include declarations
-    for (auto it = this->nodes.begin(); it != this->nodes.end(); it++) {
+    for (auto i = this->nodes.begin(); i != this->nodes.end(); i++) {
         // Get the includes
-        File f = it->second;
+        File f = i->second;
         vector<Include> includes = find_includes(f.path);
 
         for (auto inc : includes) {
             // Skip headers that are not in the abbrev table
-            if (this->abbrev.find(inc.path) != this->abbrev.end())
+            if (this->abbrev.find(inc.path) == this->abbrev.end())
                 continue;
 
             // Add an edge to each possible full path
