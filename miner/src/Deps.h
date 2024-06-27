@@ -2,7 +2,6 @@
 #define DEPS_H_
 
 #include "Include.h"
-#include "Util.h"
 
 #include <cstddef>
 #include <filesystem>
@@ -63,6 +62,8 @@ public:
 private:
     void compute_abbrev();
     void insert_short_path(filesystem::path, Node);
+
+    void naive_deps(Key current, vector<Key> *found);
 
     // Graph data
     using Nodes = unordered_map<Key, Node, KeyHash, KeyEq>;

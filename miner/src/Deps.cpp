@@ -1,4 +1,5 @@
 #include "Deps.h"
+#include "Include.h"
 #include "Util.h"
 
 #include <iostream>
@@ -138,7 +139,37 @@ void DepGraph::compute_dependencies() {
         }
     }
 
-    this->print_graph();
+    // Print out dependencies
+    for (auto i = this->nodes.begin(); i != this->nodes.end(); i++) {
+        cout << "File: " << i->second.path << "\n";
+        vector<Key> *deps = new vector<Key>{};
+        naive_deps(i->first, deps);
+        for (auto d : *deps) {
+            cout << "  " << d.string() << "\n";
+        }
+    }
+}
+
+void DepGraph::naive_deps(Key current, vector<Key> *found) {
+    found->push_back(current);
+
+    if (this->edges.find(current) != this->edges.end()) {
+        vector<pair<Key, Include>> deps = this->edges[current];
+        for (auto d : deps) {
+            // Check if we have already seen
+            bool exit = false;
+            for (auto f : *found) {
+                if (f == d.first) {
+                    exit = true;
+                    break;
+                }
+            }
+            if (exit)
+                continue;
+
+            naive_deps(d.first, found);
+        }
+    }
 }
 
 }
