@@ -4,6 +4,7 @@
 #include "Deps.h"
 #include <format>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 using namespace std;
@@ -71,6 +72,9 @@ class Choice : public Foreward {
 public:
     Choice(Node src, Node dest, KeyInc include)
         : Foreward(src, dest, include){};
+
+    // TRUE if there are more choices
+    virtual bool next() = 0;
 };
 
 class Many : public Choice {
@@ -79,6 +83,8 @@ public:
         : Choice(src, dest, include), rest(rest){};
     virtual string str();
     vector<Node> rest;
+
+    virtual bool next();
 };
 
 // =============================================================================
@@ -127,6 +133,7 @@ private:
 
     // When searching, store the choices we have made
     vector<Action *> stack;
+    Keys seen;
 
     using Ans = unordered_map<Key, Key, KeyHash, KeyEq>;
     Ans parents;

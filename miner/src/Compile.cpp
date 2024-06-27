@@ -86,8 +86,19 @@ string Many::str() {
 }
 
 void Foreward::on_push(Compiler *cc) {
-    cout << "hi" << "\n";
     cc->insert_parent(this->dest.path, this->src.path);
+}
+
+bool Many::next() {
+    if (this->rest.size() == 0)
+        return false;
+
+    // Replace with a new destination
+    Node last = this->rest.back();
+    this->dest = last;
+    this->rest.pop_back();
+
+    return true;
 }
 
 // =============================================================================
@@ -98,9 +109,10 @@ CompileResult Compiler::run() {
     // Initialize
     this->stack = vector<Action *>{};
     this->push(new Start(this->root));
+    this->seen = Keys{};
 
     this->parents = Ans{};
-    KeySet *deps = new KeySet{};
+    vector<KeyInc> include_dirs;
 
     CompileResult result;
     while (true) {
@@ -110,36 +122,38 @@ CompileResult Compiler::run() {
         cout << "Before comp:\n" << this->dump_stack() << "\n";
         cout << std::flush;
 
-        // Try to compile the file
-        vector<KeyInc> include_dirs;
+        // All visited files are includes
+        include_dirs.clear();
         for (auto element : this->stack) {
             Foreward *fw = dynamic_cast<Foreward *>(element);
             if (fw != nullptr)
                 include_dirs.push_back(fw->include);
         }
 
+        for (auto inc : include_dirs) {
+            cout << inc.key << "\n";
+        }
+
+        // Try to compile the file
         Keys dirs = dg->find_dirs(include_dirs);
         result = compile_one(this->root, dirs);
+        cout << result.output;
 
         // Stop if compilation succeeds
         if (result.success)
             break;
 
         // Otherwise backtrack to the last choice-point
-        deps->clear();
         bool cont = this->shrink();
 
         if (!cont)
             break;
     }
 
-    delete deps;
     return result;
 }
 
 void Compiler::expand() {
-    KeySet seen;
-
     while (true) {
         // Get the current location
         Action *action = this->peek();
@@ -164,11 +178,11 @@ void Compiler::expand() {
                 range = inc.equal_range(i->first);
 
                 // Don't check already visited nodes
-                if (seen.contains(KeyInc(i->second, i->first)))
+                if (this->seen.contains(i->second))
                   continue;
 
                 any = true;
-                seen.insert(KeyInc(i->second, i->first));
+                this->seen.insert(i->second);
 
                 // Collect the choices
                 vector<Node> choices;
@@ -242,10 +256,21 @@ bool Compiler::shrink() {
 
         // If we are at a choice point, return
         Choice *choice = dynamic_cast<Choice *>(current);
-        if (choice != nullptr)
+        if (choice != nullptr) {
+            bool more = choice->next();
+
+            // Remove this choice if there are no more possibilities
+            if (!more) {
+                this->pop();
+                continue;
+            }
+
+            // Otherwise, try this choice
             return true;
+        }
 
         // Otherwise, remove the element
+        this->seen.erase(this->peek()->dest.path);
         this->pop();
     }
 }
