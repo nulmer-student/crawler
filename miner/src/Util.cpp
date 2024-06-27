@@ -22,10 +22,7 @@ namespace Miner {
 
 ProcessResult run_process(string command) {
     // FIXME: Capture stderr in a non-stupid way
-    FILE *tmp = tmpfile();
-    filesystem::path tmp_path = filesystem::read_symlink(
-        filesystem::path("/proc/self/fd") / to_string(fileno(tmp))
-        );
+    filesystem::path tmp_path = std::tmpnam(nullptr);
 
     // Append stderr redirect
     command += format(" 2> '{}'", tmp_path.string());
@@ -33,11 +30,11 @@ ProcessResult run_process(string command) {
     // Run the command
     FILE *fp = popen(command.c_str(), "r");
     if (fp == nullptr)
-        std::runtime_error("Command failure");
+        throw std::runtime_error("Command failure");
 
     // Read in stdout
     int c; string acc;
-    while((c = fgetc(fp)) >= 0)
+    while((c = fgetc(fp)) != EOF)
         acc += c;
 
     // Read in stderr
@@ -50,7 +47,9 @@ ProcessResult run_process(string command) {
         err += line;
         err += "\n";    // geline removes newlines
     }
+
     err_file.close();
+    remove(tmp_path);
 
     int code = WEXITSTATUS(pclose(fp));
     return ProcessResult(code, acc, err);

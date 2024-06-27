@@ -68,8 +68,9 @@ void compile_all(DepGraph dg) {
         }
 
         // If any error occurs, skip this file
-        catch (...) {
-            cout << format("WARN: file '{}' failed", file.path.string());
+        catch (const runtime_error& error) {
+            cout << format("WARN: file '{}' failed\n", file.path.string());
+            cout << error.what() << "\n";
             #pragma omp atomic
             error_count += 1;
         }
