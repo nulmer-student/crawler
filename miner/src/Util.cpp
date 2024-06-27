@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <fcntl.h>
 #include <filesystem>
+#include <fstream>
 #include <sstream>
 #include <stdexcept>
 #include <stdio.h>
@@ -10,6 +11,12 @@
 #include <format>
 #include <sstream>
 #include <string>
+#include <iostream>
+#include <regex>
+
+using namespace std;
+
+namespace Miner {
 
 string run_process(string command) {
     // Run the command
@@ -27,19 +34,45 @@ string run_process(string command) {
     return acc;
 }
 
-vector<string> find_files(filesystem::path dir, string extension) {
+vector<filesystem::path> find_files(filesystem::path dir, string extension) {
     // Find files
     string command = format("find {} -name '*.{}'", dir.string(), extension);
     string output = run_process(command);
 
-    // Convert to a vector of files
+    // Convert to a vector of strings
     string line;
-    vector<string> acc;
+    vector<filesystem::path> acc;
     stringstream stream(output);
 
     while(getline(stream, line, '\n')) {
-        acc.push_back(line);
+        acc.push_back(filesystem::path(line));
     }
 
     return acc;
+}
+
+vector<string> find_includes(filesystem::path file) {
+    // Load the file
+    cout << file << "\n";
+    ifstream infile(file);
+
+    if (!infile.is_open())
+        throw runtime_error("File not found");
+
+    // Look for #include on each line
+    vector<string> acc;
+    string line;
+    while (getline(infile, line)) {
+        regex pattern("#include ([\"<][^\">]+[\">])");
+        smatch m;
+
+        if (regex_search(line, m, pattern)) {
+            acc.push_back(m[1]);
+        }
+    }
+
+    infile.close();
+    return acc;
+}
+
 }

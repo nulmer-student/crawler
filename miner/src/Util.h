@@ -7,7 +7,12 @@
 
 using namespace std;
 
+namespace Miner {
+
 string run_process(string command);
-vector<string> find_files(filesystem::path dir, string extension);
+vector<filesystem::path> find_files(filesystem::path dir, string extension);
+vector<string> find_includes(filesystem::path file);
+
+}
 
 #endif
