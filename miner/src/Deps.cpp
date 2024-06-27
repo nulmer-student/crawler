@@ -2,6 +2,7 @@
 #include "Include.h"
 #include "Util.h"
 
+#include <format>
 #include <iostream>
 #include <filesystem>
 #include <unordered_map>
@@ -145,23 +146,6 @@ void DepGraph::compute_dependencies() {
             }
         }
     }
-
-    for (auto i = this->nodes.begin(); i != this->nodes.end(); i++) {
-        // Find dependencies
-        cout << "File: " << i->second.path << "\n";
-        KeySet *deps = new KeySet{};
-        naive_deps(i->first, Include("<>"), deps);
-
-        // Normalize to the repo
-        Keys dirs = find_dirs(deps);
-
-        // Print out dependencies
-        for (auto ii = dirs.begin(); ii != dirs.end(); ii++) {
-            cout << "  " << ii->string() << "\n";
-        }
-
-        delete deps;
-    }
 }
 
 void DepGraph::naive_deps(Key current, Include inc, KeySet *found) {
@@ -229,6 +213,65 @@ DepGraph::Keys DepGraph::find_dirs(KeySet *dirs) {
     }
 
     return acc;
+}
+
+void DepGraph::compile_all() {
+    int file_count = 0;
+    int error_count = 0;
+
+
+    // Copy the nodes into a vector for OpenMP
+    vector<pair<Key, Node>> node_vec;
+    for (auto i = this->nodes.begin(); i != this->nodes.end(); i++) {
+        if (i->second.path.string().back() != 'c')
+            continue;
+        node_vec.push_back(*i);
+    }
+
+    #pragma omp parallel for
+    for (int i = 0; i < node_vec.size(); i++) {
+        Key key = node_vec[i].first;
+        Node file = node_vec[i].second;
+
+        if (file.path.string().back() != 'c')
+            continue;
+
+        // Find dependencies
+        cout << "Processing file: " << file.path << "\n";
+        file_count += 1;
+        KeySet *deps = new KeySet{};
+        naive_deps(key, Include("<>"), deps);
+
+        // Get the include directories
+        Keys dirs = find_dirs(deps);
+
+        // Format includes
+        string includes = "";
+        for (auto ii = dirs.begin(); ii != dirs.end(); ii++) {
+            includes += "-I" + ii->string() + " ";
+        }
+
+        // Compile the file
+        string command = format(
+            "clang -c {} {} -emit-llvm -o -",
+            file.path.string(),
+            includes);
+
+        auto result = run_process(command);
+        if (result.second != 0) {
+            error_count += 1;
+            cout << "failed" << "\n";
+        } else {
+            cout << "success" << "\n";
+        }
+
+        delete deps;
+    }
+
+    // Print statistics
+    cout << "Total files: " << file_count << "\n";
+    cout << "# Errors:    " << error_count
+         << " (" << static_cast<float>(error_count) / file_count * 100.0 << "%)\n";
 }
 
 }

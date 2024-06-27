@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
     dg.compute_dependencies();
 
     // Compile each cc file
-    // TODO
+    dg.compile_all();
 
     return 0;
 }

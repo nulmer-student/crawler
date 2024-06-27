@@ -2,6 +2,7 @@
 #include "Include.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <fcntl.h>
 #include <filesystem>
 #include <fstream>
@@ -19,7 +20,7 @@ using namespace std;
 
 namespace Miner {
 
-string run_process(string command) {
+pair<string, int> run_process(string command) {
     // Run the command
     FILE *fp = popen(command.c_str(), "r");
     if (fp == nullptr)
@@ -31,14 +32,14 @@ string run_process(string command) {
     while((c = fgetc(fp)) >= 0)
         acc += c;
 
-    pclose(fp);
-    return acc;
+    int code = WEXITSTATUS(pclose(fp));
+    return pair(acc, code);
 }
 
 vector<filesystem::path> find_files(filesystem::path dir, string extension) {
     // Find files
     string command = format("find {} -name '*.{}'", dir.string(), extension);
-    string output = run_process(command);
+    string output = run_process(command).first;
 
     // Convert to a vector of strings
     string line;

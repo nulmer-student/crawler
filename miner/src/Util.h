@@ -11,7 +11,7 @@ using namespace std;
 
 namespace Miner {
 
-string run_process(string command);
+pair<string, int> run_process(string command);
 vector<filesystem::path> find_files(filesystem::path dir, string extension);
 vector<Include> find_includes(filesystem::path file);
 
