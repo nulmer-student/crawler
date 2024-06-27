@@ -31,10 +31,21 @@ class Database:
 
     def _insert_repo(self, repo):
         """Insert a repository into the database."""
+        # Check if we already have this repo
         self.cursor.execute(
-            "insert into repos values (?, ?, ?, ?)",
-            (repo.id, repo.name, repo.clone_url, repo.stars)
+            "select * from repos where id = ?",
+            (repo.id,)
         )
+
+        # Don't insert if the repo is already there
+        if self.cursor.rowcount == 0:
+            self.cursor.execute(
+                "insert into repos values (?, ?, ?, ?)",
+                (repo.id, repo.name, repo.clone_url, repo.stars)
+            )
+        else:
+            print(f"New: {repo.id}, {repo.name}, {repo.clone_url} {repo.stars}")
+            print(self.cursor.fetchone())
 
     def insert_repos(self, repo_list):
         """Insert a list of repositories into the database."""
