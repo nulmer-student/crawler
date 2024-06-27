@@ -24,10 +24,11 @@ void compile_all(DepGraph dg) {
         // Only copy cc files
         if (i->second.path.string().back() != 'c')
             continue;
+
         node_vec.push_back(*i);
     }
 
-    // #pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < node_vec.size(); i++) {
         #pragma omp atomic
         file_count += 1;
@@ -118,9 +119,6 @@ CompileResult Compiler::run() {
         // Expand the search tree from the current point
         this->expand();
 
-        cout << "Before comp:\n" << this->dump_stack() << "\n";
-        cout << std::flush;
-
         // All visited files are includes
         include_dirs.clear();
         for (auto element : this->stack) {
@@ -129,15 +127,11 @@ CompileResult Compiler::run() {
                 include_dirs.push_back(fw->include);
         }
 
-        // NOTE: Remove this
-        for (auto inc : include_dirs) {
-            cout << inc.key << "\n";
-        }
+        // FIXME: Only compile if we haven't already tried this combination
 
         // Try to compile the file
         Keys dirs = dg->find_dirs(include_dirs);
         result = compile_one(this->root, dirs);
-        cout << result.output;
 
         // Stop if compilation succeeds
         if (result.success)
@@ -160,9 +154,12 @@ void Compiler::expand() {
         Node current = action->dest;
         Key path = current.path;
 
-        cout << path << "\n";
-        cout << "Stack:\n" << this->dump_stack() << "\n";
-        cout << std::flush;
+        // cout << path << "\n";
+        // cout << "Stack:\n" << this->dump_stack() << "\n";
+        // for (auto element : this->parents) {
+        //     cout << "p: " << element.first << " " << element.second << "\n";
+        // }
+        // cout << std::flush;
 
         // Get the children
         bool any = false;
@@ -244,10 +241,10 @@ void Compiler::expand() {
 }
 
 bool Compiler::shrink() {
-    cout << "shrink" << "\n";
+    // cout << "shrink" << "\n";
 
     while (true) {
-        cout << this->dump_stack() << "\n";
+        // cout << this->dump_stack() << "\n";
 
         Action *current = this->peek();
 
@@ -261,13 +258,14 @@ bool Compiler::shrink() {
         if (choice != nullptr) {
             bool more = choice->next();
 
-            // Remove this choice if there are no more possibilities
+            // Remove this action if there are no more possibilities
             if (!more) {
                 this->pop();
                 continue;
             }
 
             // Otherwise, try this choice
+            choice->on_push(this);
             return true;
         }
 
@@ -303,7 +301,7 @@ string Compiler::dump_stack() {
         acc += "\n";
 
         Backward *bw = dynamic_cast<Backward *>(element);
-        if (bw != nullptr) {
+        if (bw != nullptr && spc.size() >= 2) {
             spc.pop_back();
             spc.pop_back();
         }
