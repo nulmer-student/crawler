@@ -30,8 +30,10 @@ public:
     Node dest;
 
     virtual string str() = 0;
-    // virtual void on_push(Compiler *cc) = 0;
-    // virtual void on_pop(Compiler *cc) = 0;
+
+    // By default to nothing on push/pop
+    virtual void on_push(Compiler *cc) { return; }
+    virtual void on_pop(Compiler *cc) { return; }
 };
 
 class Start : public Action {
@@ -53,6 +55,7 @@ public:
     Foreward(Node src, Node dest, KeyInc include)
         : Move(src, dest), include(include){};
     virtual string str();
+    virtual void on_push(Compiler *cc);
     KeyInc include;
 };
 
@@ -64,14 +67,17 @@ public:
 
 // Choices
 
-class Choice : public Action {
+class Choice : public Foreward {
 public:
-    Choice(Node dest) : Action(dest){};
+    Choice(Node src, Node dest, KeyInc include)
+        : Foreward(src, dest, include){};
 };
 
 class Many : public Choice {
 public:
-    Many(Node dest, vector<Node> rest) : Choice(dest), rest(rest){};
+    Many(Node src, Node dest, KeyInc include, vector<Node> rest)
+        : Choice(src, dest, include), rest(rest){};
+    virtual string str();
     vector<Node> rest;
 };
 
@@ -106,6 +112,8 @@ class Compiler {
 public:
     Compiler(DepGraph *dg, Node root) : dg(dg), root(root){};
     CompileResult run();
+
+    void insert_parent(Key a, Key b);
 
 private:
     DepGraph *dg;   // File dependency graph

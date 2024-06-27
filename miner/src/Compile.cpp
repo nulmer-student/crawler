@@ -74,6 +74,22 @@ string Backward::str() {
         dest.path.string());
 }
 
+string Many::str() {
+    string acc = format("Many({}, {}", src.path.string(), dest.path.string());
+    for (auto other : this->rest) {
+        acc += ", ";
+        acc += other.path.string();
+    }
+    acc += ")";
+
+    return acc;
+}
+
+void Foreward::on_push(Compiler *cc) {
+    cout << "hi" << "\n";
+    cc->insert_parent(this->dest.path, this->src.path);
+}
+
 // =============================================================================
 // Compiler
 // =============================================================================
@@ -82,6 +98,7 @@ CompileResult Compiler::run() {
     // Initialize
     this->stack = vector<Action *>{};
     this->push(new Start(this->root));
+
     this->parents = Ans{};
     KeySet *deps = new KeySet{};
 
@@ -150,32 +167,40 @@ void Compiler::expand() {
                 if (seen.contains(KeyInc(i->second, i->first)))
                   continue;
 
+                any = true;
+                seen.insert(KeyInc(i->second, i->first));
+
                 // Collect the choices
-                vector<Key> choices;
+                vector<Node> choices;
                 for (auto choice = range.first; choice != range.second; ++choice) {
-                    choices.push_back(choice->second);
+                    choices.push_back(File(choice->second));
                 }
 
                 // If there is only one choice, insert a Foreward()
                 if (choices.size() == 1) {
                     // Visit the single child
-                    any = true;
-                    seen.insert(KeyInc(i->second, i->first));
                     this->push(
-                        new Foreward(current, File(i->second), KeyInc(i->second, i->first)));
+                        new Foreward(
+                            current,
+                            File(i->second),
+                            KeyInc(i->second, i->first)));
                     break;
                 }
 
                 // Otherwise, insert a Many()
-                // else {
-                //     any = true;
+                else {
+                    // Select one possibility to use
+                    Node chosen = choices[choices.size() - 1];
+                    choices.pop_back();
 
-                //     // Select one possibility to use
-                //     Node chosen = *choices.end();
-                //     choices.pop_back();
-
-                //     seen.insert(KeyInc(i->second, i->first));
-                // }
+                    // Insert the many
+                    this->push(
+                        new Many(
+                            current,
+                            chosen,
+                            KeyInc(i->second, i->first),
+                            choices));
+                }
 
                 none = false;
             }
@@ -225,29 +250,18 @@ bool Compiler::shrink() {
     }
 }
 
-void Compiler::pop() {
-    // If this is a backword action, remove the parent
-    Backward *bw = dynamic_cast<Backward *>(this->peek());
-    if (bw != nullptr) {
-        this->parents.erase(bw->dest.path);
-    }
-
-    this->stack.pop_back();
-}
-
 Action *Compiler::peek() {
     return this->stack.back();
 }
 
-void Compiler::push(Action *action) {
-    // If this is a foreward action, save the parent
-    Foreward *fw = dynamic_cast<Foreward *>(action);
-    if (fw != nullptr) {
-        this->parents.insert({fw->dest.path, fw->src.path});
-    }
+void Compiler::pop() {
+    this->peek()->on_pop(this);
+    this->stack.pop_back();
+}
 
-    // Add the action
+void Compiler::push(Action *action) {
     this->stack.push_back(action);
+    this->peek()->on_push(this);
 }
 
 string Compiler::dump_stack() {
@@ -349,5 +363,8 @@ vector<Match> Compiler::parse_remarks(string input) {
     return acc;
 }
 
+void Compiler::insert_parent(Key dest, Key src) {
+    this->parents.insert({dest, src});
+}
 
 } // namespace Miner
