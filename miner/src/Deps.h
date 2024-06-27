@@ -87,8 +87,6 @@ public:
     void print_abbrev();
     void print_graph();
 
-    void naive_deps(Key current, Include inc, KeySet *found);
-
     // Find needed directories from include files
     Keys find_dirs(KeySet*);
     int path_length(Key);

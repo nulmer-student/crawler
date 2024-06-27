@@ -147,28 +147,6 @@ void DepGraph::compute_dependencies() {
     }
 }
 
-void DepGraph::naive_deps(Key current, Include inc, KeySet *found) {
-    found->insert(KeyInc(current, inc));
-
-    if (this->edges.find(current) != this->edges.end()) {
-        // Find the direct dependencies
-        IncMap deps = this->edges[current];
-        decltype(deps.equal_range(Include("<>"))) range; // Why?
-
-        // For each short header path, explore the first
-        for (auto i = deps.begin(); i != deps.end(); i = range.second) {
-            range = deps.equal_range(i->first);
-
-            // Only check the first possibility
-            if (found->contains(KeyInc(i->second, i->first)))
-                continue;
-
-            // Search the children
-            naive_deps(i->second, i->first, found);
-        }
-    }
-}
-
 int DepGraph::path_length(Key path) {
     int count = 0;
 
