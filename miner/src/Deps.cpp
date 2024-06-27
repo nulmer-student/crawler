@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <filesystem>
+#include <unordered_map>
 #include <vector>
 
 using namespace std;
@@ -83,35 +84,41 @@ void DepGraph::insert_node(Key k, Node n) {
 }
 
 void DepGraph::insert_edge(Key f1, Key f2, Include inc) {
-    // It it exists, add the edge to the list of edges
-    if (this->edges.find(f1) != this->edges.end()) {
-        this->edges[f1].push_back(pair(f2, inc));
+    // TODO: If the edge is already present, don't insert
+
+    // If there is no map with this key, insert an empty one
+    if (this->edges.find(f1) == this->edges.end()) {
+        this->edges.insert({f1, IncMap{}});
     }
 
-    // Otherwise, create a new list
-    else {
-        this->edges.insert({f1, {pair(f2, inc)}});
-    }
+    // Insert the edge
+    this->edges[f1].insert({inc, f2});
 }
 
 void DepGraph::print_graph() {
     // Print out the nodes
     for (auto i = this->nodes.begin(); i != this->nodes.end(); i++) {
-        cout << "Node: ("
-             << i->first.string() << ", "
-             << i->second.path.string()
-             << ")\n";
+        cout << "Node: "
+             << i->first.string()
+             << "\n";
     }
 
     // Print out the edges
     for (auto i = this->edges.begin(); i != this->edges.end(); i++) {
         cout << "From: " << i->first.string() << "\n";
-        for (auto e : i->second) {
-            cout << "  To: "
-                 << e.first.string()
-                 << " ("
-                 << e.second.path.string()
-                 << ")\n";
+
+        // For each include, print all possibilities
+        IncMap includes = i->second;
+        decltype(includes.equal_range(Include("<>"))) range; // Why?
+        for (auto ii = includes.begin(); ii != includes.end(); ii = range.second) {
+            // Print the short header path
+            cout << "  " << ii->first.path << "\n";
+
+            // Print the range of possible paths
+            range = includes.equal_range(ii->first);
+            for (auto iii = range.first; iii != range.second; ++iii) {
+                cout << "    " << iii->second.string() << "\n";
+            }
         }
     }
 }
@@ -139,35 +146,38 @@ void DepGraph::compute_dependencies() {
         }
     }
 
-    // Print out dependencies
     for (auto i = this->nodes.begin(); i != this->nodes.end(); i++) {
+        // Find dependencies
         cout << "File: " << i->second.path << "\n";
-        vector<Key> *deps = new vector<Key>{};
+        KeySet *deps = new KeySet{};
         naive_deps(i->first, deps);
+
+        // Print out dependencies
         for (auto d : *deps) {
             cout << "  " << d.string() << "\n";
         }
     }
 }
 
-void DepGraph::naive_deps(Key current, vector<Key> *found) {
-    found->push_back(current);
+void DepGraph::naive_deps(Key current, KeySet *found) {
+    found->insert(current);
 
     if (this->edges.find(current) != this->edges.end()) {
-        vector<pair<Key, Include>> deps = this->edges[current];
-        for (auto d : deps) {
-            // Check if we have already seen
-            bool exit = false;
-            for (auto f : *found) {
-                if (f == d.first) {
-                    exit = true;
-                    break;
-                }
-            }
-            if (exit)
+        // Find the direct dependencies
+        IncMap deps = this->edges[current];
+        decltype(deps.equal_range(Include("<>"))) range; // Why?
+
+        // For each short header path, explore the first
+        for (auto i = deps.begin(); i != deps.end(); i = range.second) {
+            // cout << "  " << i->first.path << "\n";
+            range = deps.equal_range(i->first);
+
+            // Only check the first possibility
+            if (found->contains(i->second))
                 continue;
 
-            naive_deps(d.first, found);
+            // Search the children
+            naive_deps(i->second, found);
         }
     }
 }

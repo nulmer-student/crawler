@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <unordered_map>
-#include <utility>
+#include <unordered_set>
 #include <vector>
 
 using namespace std;
@@ -63,13 +63,17 @@ private:
     void compute_abbrev();
     void insert_short_path(filesystem::path, Node);
 
-    void naive_deps(Key current, vector<Key> *found);
+    using KeySet = unordered_set<Key, KeyHash, KeyEq>;
+    void naive_deps(Key current, KeySet *found);
 
-    // Graph data
+    // Nodes are repository files
     using Nodes = unordered_map<Key, Node, KeyHash, KeyEq>;
-    using Edges = unordered_map<Key, vector<pair<Key, Include>>>;
-    Nodes nodes;    // Nodes are repository files
-    Edges edges;    // Edges are #include X declarations
+    Nodes nodes;
+
+    // Edges are #include X declarations
+    using IncMap = unordered_multimap<Include, Key, IncludeHash, IncludeEq>;
+    using Edges  = unordered_map<Key, IncMap, KeyHash, KeyEq>;
+    Edges edges;
 
     // Map short include paths (eg #include for/bar.h) to full paths
     using Abbrev = unordered_map<filesystem::path, vector<File>>;
