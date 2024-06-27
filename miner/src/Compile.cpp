@@ -47,32 +47,6 @@ void compile_all(DepGraph dg) {
     cout << format("Errors:      {:5} ({:5.1f}%)\n", error_count, prop);
 }
 
-string parse_remarks(string input) {
-    // Construct the pattern
-    // FIXME: Make less fragile
-    string pat = "";
-    pat += "remark: vectorized loop \\(";
-    pat += "vectorization width: (\\d+),";
-    pat += " interleaved count: (\\d+),";
-    pat += " scalar interpolation count: (\\d+)";
-    pat += "\\)";
-
-    regex pattern(pat);
-    smatch m;
-
-    // Search each line in the input for the pattern
-    string found = "";
-    string line;
-    istringstream str(input);
-    while (getline(str, line)) {
-        if (regex_search(line, m, pattern)) {
-            found += format("{} {} {}\n", m[1].str(), m[2].str(), m[3].str());
-        }
-    }
-
-    return found;
-}
-
 // =============================================================================
 // Compiler
 // =============================================================================
@@ -101,10 +75,8 @@ CompileResult Compiler::compile_one(Node file) {
 
     // Compile the file
     string command = format(
-        // "{} -c {} {} -o /dev/null -emit-llvm",
         "{} -c {} {} -o /dev/null -emit-llvm -O3 -Rpass=loop-vectorize",
         CLANG_PATH,
-        // "clang",
         file.path.string(),
         includes);
 
@@ -112,7 +84,11 @@ CompileResult Compiler::compile_one(Node file) {
     output += result.stdout;
 
     // Parse stderr to find vectorization opportunities
-    output += parse_remarks(result.stderr);
+    string rem = parse_remarks(result.stderr);
+    if (rem != "") {
+        output += "line, column, width, interleave, scalar\n";
+        output += rem;
+    }
 
     // Set based on compilation pass/fail
     auto success = true;
@@ -126,5 +102,36 @@ CompileResult Compiler::compile_one(Node file) {
     delete deps;
     return CompileResult(success, output);
 }
+
+string Compiler::parse_remarks(string input) {
+    // Construct the pattern
+    // FIXME: Make less fragile
+    string pat = "";
+    pat += "(\\d+):(\\d+): ";
+    pat += "remark: vectorized loop \\(";
+    pat += "vectorization width: (\\d+),";
+    pat += " interleaved count: (\\d+),";
+    pat += " scalar interpolation count: (\\d+)";
+    pat += "\\)";
+
+    regex pattern(pat);
+    smatch m;
+
+    // Search each line in the input for the pattern
+    string found = "";
+    string line;
+    istringstream str(input);
+    while (getline(str, line)) {
+        if (regex_search(line, m, pattern)) {
+            found += format(
+                "{}, {}, {}, {}, {}\n",
+                m[1].str(), m[2].str(),
+                m[3].str(), m[4].str(), m[5].str());
+        }
+    }
+
+    return found;
+}
+
 
 } // namespace Miner

@@ -9,9 +9,6 @@ namespace Miner {
 // Compile all cc files
 void compile_all(DepGraph dg);
 
-// Extract the vectorization opportunities
-string parse_remarks(string input);
-
 // =============================================================================
 // Complier
 // =============================================================================
@@ -44,7 +41,11 @@ private:
     // When searching, store the choices we have made
     vector<Action*> choice_stack;
 
+    // Complie a single file
     CompileResult compile_one(Node file);
+
+    // Extract vectorization opportunities
+    string parse_remarks(string input);
 };
 
 }
