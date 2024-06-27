@@ -4,6 +4,7 @@
 #include "Deps.h"
 #include <format>
 #include <unordered_map>
+#include <vector>
 
 using namespace std;
 namespace Miner {
@@ -49,8 +50,10 @@ public:
 
 class Foreward : public Move {
 public:
-    Foreward(Node src, Node dest) : Move(src, dest){};
+    Foreward(Node src, Node dest, KeyInc include)
+        : Move(src, dest), include(include){};
     virtual string str();
+    KeyInc include;
 };
 
 class Backward : public Move {
@@ -62,6 +65,14 @@ public:
 // Choices
 
 class Choice : public Action {
+public:
+    Choice(Node dest) : Action(dest){};
+};
+
+class Many : public Choice {
+public:
+    Many(Node dest, vector<Node> rest) : Choice(dest), rest(rest){};
+    vector<Node> rest;
 };
 
 // =============================================================================
@@ -113,8 +124,8 @@ private:
     Ans parents;
     Node parent(Node current);
 
-    void expand(KeySet *deps);
-    bool shrink(KeySet *deps);
+    void expand();
+    bool shrink();
 
     Action *peek();
     void pop();

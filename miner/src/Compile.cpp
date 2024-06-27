@@ -88,11 +88,21 @@ CompileResult Compiler::run() {
     CompileResult result;
     while (true) {
         // Expand the search tree from the current point
-        this->expand(deps);
+        this->expand();
+
+        cout << "Before comp:\n" << this->dump_stack() << "\n";
+        cout << std::flush;
 
         // Try to compile the file
-        Keys include_dirs = dg->find_dirs(deps);
-        result = compile_one(this->root, include_dirs);
+        vector<KeyInc> include_dirs;
+        for (auto element : this->stack) {
+            Foreward *fw = dynamic_cast<Foreward *>(element);
+            if (fw != nullptr)
+                include_dirs.push_back(fw->include);
+        }
+
+        Keys dirs = dg->find_dirs(include_dirs);
+        result = compile_one(this->root, dirs);
 
         // Stop if compilation succeeds
         if (result.success)
@@ -100,7 +110,7 @@ CompileResult Compiler::run() {
 
         // Otherwise backtrack to the last choice-point
         deps->clear();
-        bool cont = this->shrink(deps);
+        bool cont = this->shrink();
 
         if (!cont)
             break;
@@ -110,7 +120,7 @@ CompileResult Compiler::run() {
     return result;
 }
 
-void Compiler::expand(KeySet *deps) {
+void Compiler::expand() {
     KeySet seen;
 
     while (true) {
@@ -138,16 +148,34 @@ void Compiler::expand(KeySet *deps) {
 
                 // Don't check already visited nodes
                 if (seen.contains(KeyInc(i->second, i->first)))
-                    continue;
+                  continue;
 
-                // Visit the first unseen child
-                any = true;
-                seen.insert(KeyInc(i->second, i->first));
-                this->push(new Foreward(current, File(i->second)));
+                // Collect the choices
+                vector<Key> choices;
+                for (auto choice = range.first; choice != range.second; ++choice) {
+                    choices.push_back(choice->second);
+                }
 
-                // Save the include file
-                deps->insert(KeyInc(i->second, i->first));
-                break;
+                // If there is only one choice, insert a Foreward()
+                if (choices.size() == 1) {
+                    // Visit the single child
+                    any = true;
+                    seen.insert(KeyInc(i->second, i->first));
+                    this->push(
+                        new Foreward(current, File(i->second), KeyInc(i->second, i->first)));
+                    break;
+                }
+
+                // Otherwise, insert a Many()
+                // else {
+                //     any = true;
+
+                //     // Select one possibility to use
+                //     Node chosen = *choices.end();
+                //     choices.pop_back();
+
+                //     seen.insert(KeyInc(i->second, i->first));
+                // }
 
                 none = false;
             }
@@ -174,7 +202,7 @@ void Compiler::expand(KeySet *deps) {
     }
 }
 
-bool Compiler::shrink(KeySet *deps) {
+bool Compiler::shrink() {
     cout << "shrink" << "\n";
 
     while (true) {

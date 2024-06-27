@@ -88,7 +88,7 @@ public:
     void print_graph();
 
     // Find needed directories from include files
-    Keys find_dirs(KeySet*);
+    Keys find_dirs(vector<KeyInc>);
     int path_length(Key);
 
     // FIXME: Make these private & provide iterator

@@ -158,11 +158,11 @@ int DepGraph::path_length(Key path) {
     return count;
 }
 
-Keys DepGraph::find_dirs(KeySet *dirs) {
+Keys DepGraph::find_dirs(vector<KeyInc> dirs) {
     Keys acc;
 
     // Add each directory to the set
-    for (auto d : *dirs) {
+    for (auto d : dirs) {
         // Don't include system headers
         if (d.inc.type == IncludeType::System)
             continue;
