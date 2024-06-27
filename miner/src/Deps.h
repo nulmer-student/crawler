@@ -32,6 +32,30 @@ typedef filesystem::path Key;
 typedef File Node;
 
 // =============================================================================
+// Pair of Key & Include
+// =============================================================================
+
+// Path and Include pair
+class KeyInc {
+public:
+    KeyInc(Key k, Include i) : key(k), inc(i){};
+    Key key;
+    Include inc;
+};
+
+struct KeyIncHash {
+    size_t operator()(const KeyInc &k) const {
+        return hash<string>{}(k.key.string());
+    }
+};
+
+struct KeyIncEq {
+    size_t operator()(const KeyInc &a, const KeyInc &b) const {
+        return a.key == b.key; //&& &a.inc == &b.inc;
+    }
+};
+
+// =============================================================================
 // Dependency Graph:
 // =============================================================================
 
@@ -59,12 +83,20 @@ public:
     void print_abbrev();
     void print_graph();
 
+    // FIXME: Move out of this class
+    void compile_all();
+
 private:
     void compute_abbrev();
     void insert_short_path(filesystem::path, Node);
 
-    using KeySet = unordered_set<Key, KeyHash, KeyEq>;
-    void naive_deps(Key current, KeySet *found);
+    using KeySet = unordered_set<KeyInc, KeyIncHash, KeyIncEq>;
+    void naive_deps(Key current, Include inc, KeySet *found);
+
+    // Find needed directories from include files
+    using Keys = unordered_set<Key, KeyHash, KeyEq>;
+    Keys find_dirs(KeySet*);
+    int path_length(Key);
 
     // Nodes are repository files
     using Nodes = unordered_map<Key, Node, KeyHash, KeyEq>;

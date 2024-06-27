@@ -150,17 +150,22 @@ void DepGraph::compute_dependencies() {
         // Find dependencies
         cout << "File: " << i->second.path << "\n";
         KeySet *deps = new KeySet{};
-        naive_deps(i->first, deps);
+        naive_deps(i->first, Include("<>"), deps);
+
+        // Normalize to the repo
+        Keys dirs = find_dirs(deps);
 
         // Print out dependencies
-        for (auto d : *deps) {
-            cout << "  " << d.string() << "\n";
+        for (auto ii = dirs.begin(); ii != dirs.end(); ii++) {
+            cout << "  " << ii->string() << "\n";
         }
+
+        delete deps;
     }
 }
 
-void DepGraph::naive_deps(Key current, KeySet *found) {
-    found->insert(current);
+void DepGraph::naive_deps(Key current, Include inc, KeySet *found) {
+    found->insert(KeyInc(current, inc));
 
     if (this->edges.find(current) != this->edges.end()) {
         // Find the direct dependencies
@@ -169,17 +174,61 @@ void DepGraph::naive_deps(Key current, KeySet *found) {
 
         // For each short header path, explore the first
         for (auto i = deps.begin(); i != deps.end(); i = range.second) {
-            // cout << "  " << i->first.path << "\n";
             range = deps.equal_range(i->first);
 
             // Only check the first possibility
-            if (found->contains(i->second))
+            if (found->contains(KeyInc(i->second, i->first)))
                 continue;
 
             // Search the children
-            naive_deps(i->second, found);
+            naive_deps(i->second, i->first, found);
         }
     }
+}
+
+int DepGraph::path_length(Key path) {
+    int count = 0;
+
+    for (auto p : path) {
+        if (p != Key("/"))
+            count += 1;
+    }
+
+    return count;
+}
+
+DepGraph::Keys DepGraph::find_dirs(KeySet *dirs) {
+    Keys acc;
+
+    // Add each directory to the set
+    for (auto d : *dirs) {
+        // Don't include system headers
+        if (d.inc.type == IncludeType::System)
+            continue;
+
+        // Don't include null includes
+        if (d.inc == Include("<>"))
+            continue;
+
+        // Find the correct include directory
+        int full = path_length(d.key);
+        int partial = path_length(d.inc.path);
+        int count = full - partial + 1;
+
+        Key path = Key();
+        for (auto p : d.key) {
+            if (count <= 0)
+                break;
+
+            path /= p;
+            count -= 1;
+        }
+
+        // Add the directory
+        acc.insert(path);
+    }
+
+    return acc;
 }
 
 }

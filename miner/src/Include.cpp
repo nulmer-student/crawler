@@ -32,4 +32,8 @@ Include::Include(string input) {
     }
 }
 
+size_t Include::operator==(const Include &other) const {
+    return this->path == other.path && this->type == other.type;
+}
+
 } // namespace Miner
