@@ -2,10 +2,13 @@
 #include "Compile.h"
 #include "Deps.h"
 
+#include <cstddef>
 #include <format>
 #include <iostream>
+#include <iterator>
 #include <regex>
 #include <sstream>
+#include <stdexcept>
 #include <vector>
 
 #define CLANG_PATH "/home/nju/.opt/scalar/llvm-bin/bin/clang"
@@ -26,7 +29,8 @@ void compile_all(DepGraph dg) {
         node_vec.push_back(*i);
     }
 
-    #pragma omp parallel for
+    // #pragma omp parallel for
+    // for (int i = 0; i < 1; i++) {
     for (int i = 0; i < node_vec.size(); i++) {
         #pragma omp atomic
         file_count += 1;
@@ -50,17 +54,94 @@ void compile_all(DepGraph dg) {
 }
 
 // =============================================================================
+// Actions
+// =============================================================================
+
+string Start::str() {
+    return format("Start({})", dest.path.string());
+}
+
+string Foreward::str() {
+    return format(
+        "Foreward({}, {})",
+        src.path.string(),
+        dest.path.string());
+}
+
+string Backward::str() {
+    return format(
+        "Backward({}, {})",
+        src.path.string(),
+        dest.path.string());
+}
+
+// =============================================================================
 // Compiler
 // =============================================================================
 
 CompileResult Compiler::run() {
-    // Initialize the choice stack
+    // Initialize
     this->stack = vector<Action *>{};
     this->push(new Start(this->root));
+    KeySet seen;
+    this->parents = Ans{};
+    KeySet *deps = new KeySet{};
+
+    while (true) {
+        cout << "Stack:\n" << this->dump_stack() << "\n";
+
+        // Get the current location
+        Action *action = this->peek();
+        Node current = action->dest;
+        Key path = current.path;
+        cout << path << "\n";
+
+        // Get the children
+        bool any = false;
+        if (dg->edges.find(path) != dg->edges.end()) {
+            // Get the direct dependencies
+            DepGraph::IncMap inc = dg->edges[path];
+
+            // Explore the dependencies
+            decltype(inc.equal_range(Include("<>"))) range; // Why?
+
+            bool none = true;
+            for (auto i = inc.begin(); i != inc.end(); i = range.second) {
+                range = inc.equal_range(i->first);
+
+                // Don't check already visited nodes
+                if (seen.contains(KeyInc(i->second, i->first)))
+                    continue;
+
+                // Visit the first unseen child
+                any = true;
+                seen.insert(KeyInc(i->second, i->first));
+                this->push(new Foreward(current, File(i->second)));
+
+                // Save the include file
+                deps->insert(KeyInc(i->second, i->first));
+                break;
+
+                none = false;
+            }
+
+            // End if we are goind backward to the root & there are no more
+            // children
+            if (none) {
+                Backward *bk = dynamic_cast<Backward *>(this->peek());
+                if (bk != nullptr && bk->dest.path == this->root.path)
+                    break;
+            }
+        }
+
+        // If no children matched, go backward
+        if (!any) {
+            Node parent = this->parent(current);
+            this->push(new Backward(File(current), parent));
+        }
+    }
 
     // Get the include directories
-    KeySet *deps = new KeySet{};
-    dg->naive_deps(this->root.path, Include("<>"), deps);
     Keys dirs = dg->find_dirs(deps);
 
     // Compile the file
@@ -81,8 +162,36 @@ Action *Compiler::peek() {
 }
 
 void Compiler::push(Action *action) {
+    // If this is a foreward action, save the parent
+    Foreward *fw = dynamic_cast<Foreward *>(action);
+    if (fw != nullptr) {
+        this->parents.insert({fw->dest.path, fw->src.path});
+    }
+
+    // Add the action
     this->stack.push_back(action);
 }
+
+string Compiler::dump_stack() {
+    string acc = "";
+    for (Action *element : this->stack) {
+        acc += element->str();
+        acc += "\n";
+    }
+    return acc;
+}
+
+Node Compiler::parent(Node current) {
+    if (parents.find(current.path) == parents.end()) {
+        throw runtime_error(format("Missing parent: {}", current.path.string()));
+    }
+
+    return parents[current.path];
+}
+
+// =============================================================================
+// Compiler a Single File
+// =============================================================================
 
 CompileResult Compiler::compile_one(Node file, Keys includes) {
     // Find dependencies

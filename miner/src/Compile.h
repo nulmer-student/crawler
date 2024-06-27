@@ -3,6 +3,7 @@
 
 #include "Deps.h"
 #include <format>
+#include <unordered_map>
 
 using namespace std;
 namespace Miner {
@@ -27,11 +28,15 @@ public:
     Action(Node dest) : dest(dest){};
     Node dest;
 
+    virtual string str() = 0;
     // virtual void on_push(Compiler *cc) = 0;
     // virtual void on_pop(Compiler *cc) = 0;
 };
 
 class Start : public Action {
+public:
+    Start(Node dest) : Action(dest){};
+    virtual string str();
 };
 
 class Move : public Action {
@@ -40,8 +45,17 @@ public:
     Node src;
 };
 
-class Foreward : public Move {};
-class Backward : public Move {};
+class Foreward : public Move {
+public:
+    Foreward(Node src, Node dest) : Move(src, dest){};
+    virtual string str();
+};
+
+class Backward : public Move {
+public:
+    Backward(Node src, Node dest) : Move(src, dest){};
+    virtual string str();
+};
 
 // =============================================================================
 // Complier
@@ -81,15 +95,20 @@ private:
 
     // Try to complie a single file
     CompileResult compile_one(Node file, Keys includes);
+
     // Extract vectorization opportunities from the compiler output
     vector<Match> parse_remarks(string input);
 
     // When searching, store the choices we have made
     vector<Action *> stack;
+    using Ans = unordered_map<Key, Key, KeyHash, KeyEq>;
+    Ans parents;
+
     Action *pop();
     Action *peek();
     void push(Action *action);
-
+    string dump_stack();
+    Node parent(Node current);
 };
 
 }
