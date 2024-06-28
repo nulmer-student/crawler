@@ -57,11 +57,13 @@ class Search():
             # Get the next page & insert into the database
             page_size = min(60, self._max_repos - found)
             repos, incomplete = self._get_page(page_no, page_size)
-            self.db.insert_repos(repos)
+            new = self.db.insert_repos(repos)
 
             # Decide if we should continue fetching
-            found += len(repos)
+            found += new
             page_no += 1
+
+            print(f"Found '{found}' repositories")
 
             # Exit if there are no more results
             # if not incomplete:
