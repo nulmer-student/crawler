@@ -2,8 +2,10 @@
 #include "Compile.h"
 #include "Deps.h"
 
+#include <filesystem>
 #include <format>
 #include <iostream>
+#include <fstream>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
@@ -13,7 +15,10 @@
 
 namespace Miner {
 
-void compile_all(DepGraph dg) {
+void compile_all(DepGraph dg, filesystem::path logfile) {
+    ofstream log;
+    log.open(logfile, ios::app);
+
     // Store statistics
     int file_count  = 0;
     int error_count = 0;
@@ -31,27 +36,27 @@ void compile_all(DepGraph dg) {
         node_vec.push_back(*i);
     }
 
+    file_count = node_vec.size();
+
     #pragma omp parallel for
     for (int i = 0; i < node_vec.size(); i++) {
-        #pragma omp atomic
-        file_count += 1;
-
         Node file = node_vec[i].second;
 
         try {
             // Compile the file
+            // FIXME: Direct stdout/stderr to logfile
             Compiler c = Compiler(&dg, file);
             CompileResult result = c.run();
 
-            // Print all associated output
-            cout << c.get_output().str();
+            // Log all associated output
+            log << c.get_output().str();
 
-            // Update statistics
-            if (!result.success)
-                #pragma omp atomic
-                error_count += 1;
+            // Print the matches
+            for (auto m : result.matches) {
+                cout << m.str() << "\n";
+            }
 
-            // Update match count
+            // Count the matches
             int v_local  = 0;
             int si_local = 0;
             for (auto m : result.matches) {
@@ -61,6 +66,11 @@ void compile_all(DepGraph dg) {
                 v_local += 1;
             }
 
+            // Update statistics
+            if (!result.success)
+                #pragma omp atomic
+                error_count += 1;
+
             #pragma opm atomic
             vec_count += v_local;
             #pragma opm atomic
@@ -69,12 +79,14 @@ void compile_all(DepGraph dg) {
 
         // If any error occurs, skip this file
         catch (const runtime_error& error) {
-            cout << format("WARN: file '{}' failed\n", file.path.string());
-            cout << error.what() << "\n";
+            log << format("WARN: file '{}' failed\n", file.path.string());
+            log << error.what() << "\n";
             #pragma omp atomic
             error_count += 1;
         }
     }
+
+    log.close();
 
     // Print statistics
     float prop = static_cast<float>(error_count) / file_count * 100.0;

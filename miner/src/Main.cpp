@@ -5,6 +5,7 @@
 
 #include <csignal>
 #include <cstdio>
+#include <filesystem>
 #include <string>
 #include <execinfo.h>
 #include <signal.h>
@@ -32,7 +33,7 @@ int main(int argc, char **argv) {
     // Handle arguments
     struct arguments args;
     args.threads = 12;
-    args.log = "./log";
+    args.log = "/dev/null";
 
     argp_parse(&arg_p, argc, argv, 0, 0, &args);
 
@@ -40,7 +41,7 @@ int main(int argc, char **argv) {
     omp_set_num_threads(args.threads);
 
     // Find all source files in the repository
-    string path(args.args[0]);
+    filesystem::path path = filesystem::canonical(args.args[0]);
     vector<filesystem::path> cc      = find_files(path, "c");
     vector<filesystem::path> headers = find_files(path, "h");
 
@@ -51,7 +52,7 @@ int main(int argc, char **argv) {
     dg.compute_dependencies();
 
     // Compile each cc file
-    compile_all(dg);
+    compile_all(dg, args.log);
 
     return 0;
 }

@@ -3,6 +3,7 @@
 
 #include "Deps.h"
 
+#include <filesystem>
 #include <format>
 #include <sstream>
 #include <unordered_map>
@@ -12,7 +13,7 @@ using namespace std;
 namespace Miner {
 
 // Compile all cc files
-void compile_all(DepGraph dg);
+void compile_all(DepGraph dg, filesystem::path logfile);
 
 class Compiler;
 
@@ -104,7 +105,9 @@ public:
     int scalar;
 
     string str() {
-        return format("{} {} {} {} {}", line, column, width, interleave, scalar);
+        return format(
+            "{},{},{},{},{},{}",
+            file.path.string(), line, column, width, interleave, scalar);
     }
 };
 
