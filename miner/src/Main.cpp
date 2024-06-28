@@ -1,6 +1,7 @@
 #include "Util.h"
 #include "Deps.h"
 #include "Compile.h"
+#include "Config.h"
 
 #include <csignal>
 #include <cstdio>
@@ -8,6 +9,7 @@
 #include <execinfo.h>
 #include <signal.h>
 #include <unistd.h>
+#include <omp.h>
 
 using namespace Miner;
 using namespace std;
@@ -23,12 +25,22 @@ void handler(int sig) {
     exit(1);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char **argv) {
     // Register signal handler
     signal(SIGSEGV, handler);
 
+    // Handle arguments
+    struct arguments args;
+    args.threads = 12;
+    args.log = "./log";
+
+    argp_parse(&arg_p, argc, argv, 0, 0, &args);
+
+    // Set the number of threads to use
+    omp_set_num_threads(args.threads);
+
     // Find all source files in the repository
-    string path(argv[1]);
+    string path(args.args[0]);
     vector<filesystem::path> cc      = find_files(path, "c");
     vector<filesystem::path> headers = find_files(path, "h");
 
