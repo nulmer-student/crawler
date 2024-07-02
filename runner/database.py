@@ -25,8 +25,8 @@ class InternDB(Database):
         super()._init_db()
 
         # Add tables
-        self.cursor.execute("drop table if exists files")
         self.cursor.execute("drop table if exists matches")
+        self.cursor.execute("drop table if exists files")
 
         self.cursor.execute(
             """
@@ -41,25 +41,28 @@ class InternDB(Database):
         self.cursor.execute(
             """
             create table matches (
+                match_id    int,
                 file_id     int,
                 line        int,
                 col         int,
                 vector      int,
                 width       int,
                 si          int,
-                primary key (file_id, line, col)
+                primary key (match_id, file_id),
+                foreign key (file_id) references files
             )
             """
         )
 
     def add_match(self, path, line, col, vector, tile, si):
         # Ensure that there is an entry in the file table
-        id = self._ensure_file(path)
+        file_id = self._ensure_file(path)
 
         # Insert the match
+        match_id = self._new_match_id(file_id)
         self.cursor.execute(
-            "insert into matches values (?, ?, ?, ?, ?, ?)",
-            (id, line, col, vector, tile, si)
+            "insert into matches values (?, ?, ?, ?, ?, ?, ?)",
+            (match_id, file_id, line, col, vector, tile, si)
         )
 
         self.connection.commit()
@@ -73,11 +76,11 @@ class InternDB(Database):
         )
 
         if self.cursor.rowcount == 1:
-            return self.cursor.fetchone()
+            return self.cursor.fetchone()[0]
 
         # Otherwise, insert the file
         if self.cursor.rowcount == 0:
-            id = self._new_file_id()[0]
+            id = self._new_file_id()
             self.cursor.execute(
                 "insert into files values (?, ?)",
                 (id, path)
@@ -85,9 +88,20 @@ class InternDB(Database):
             self.connection.commit()
             return id
 
+
     def _new_file_id(self):
         """Gererate a unique file id."""
         self.cursor.execute("select ifnull(max(file_id) + 1, 0) from files")
         id = self.cursor.fetchone()
         self.connection.commit()
-        return id
+        return id[0]
+
+    def _new_match_id(self, file_id):
+        """Gererate a unique file id."""
+        self.cursor.execute(
+            "select ifnull(max(match_id) + 1, 0) from matches where file_id = ?",
+            (file_id,)
+        )
+        id = self.cursor.fetchone()
+        self.connection.commit()
+        return id[0]
