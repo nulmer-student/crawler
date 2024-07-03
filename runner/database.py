@@ -17,30 +17,32 @@ class Database:
 
     def _init_db(self):
         """Setup the database."""
-        pass
-
-
-class InternDB(Database):
-    def _init_db(self):
-        super()._init_db()
-
-        # Add tables
-        self.cursor.execute("drop table if exists matches")
-        self.cursor.execute("drop table if exists files")
+        self.cursor.execute(
+            """
+            create table if not exists repos (
+                repo_id     int,
+                name        text,
+                clone_url   text,
+                stars       int,
+                primary key (repo_id)
+            )
+            """)
 
         self.cursor.execute(
             """
-            create table files (
+            create table if not exists files (
                 file_id     int,
+                repo_id     int,
                 path        text,
-                primary key (file_id)
+                primary key (file_id, repo_id),
+                foreign key (repo_id) references repos
             )
             """
         )
 
         self.cursor.execute(
             """
-            create table matches (
+            create table if not exists matches (
                 match_id    int,
                 file_id     int,
                 line        int,
@@ -53,6 +55,12 @@ class InternDB(Database):
             )
             """
         )
+        self.connection.commit()
+
+
+class InternDB(Database):
+    def _init_db(self):
+        super()._init_db()
 
     def add_match(self, path, line, col, vector, tile, si):
         # Ensure that there is an entry in the file table

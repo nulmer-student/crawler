@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from miner import DEFAULT_MINER, Miner
+from search import Search
 
 import sys
 
@@ -14,11 +15,15 @@ def main():
     logging.basicConfig(filename="./log", level=logging.INFO)
     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
-    # TODO: Search for repos
+    # Search for repos
+    # searcher = Search()
+    # searcher.run()
 
-    # NOTE: Test miner
+    # Test miner
     miner = Miner()
-    miner._mine_one("https://github.com/wg/wrk.git", "wrk")
+    miner.mine_all()
+    # miner._mine_one("https://github.com/wg/wrk.git", "wrk")
+    # miner._mine_one("https://github.com/git/git", "git")
 
     pass
 
