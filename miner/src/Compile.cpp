@@ -13,11 +13,9 @@
 #include <string>
 #include <vector>
 
-#define CLANG_PATH "/home/nju/.opt/scalar/llvm-bin/bin/clang"
-
 namespace Miner {
 
-void compile_all(DepGraph dg, filesystem::path logfile) {
+void compile_all(DepGraph dg, filesystem::path clang_path, filesystem::path logfile, int max_tries) {
     ofstream log;
     log.open(logfile, ios::out);
 
@@ -47,10 +45,11 @@ void compile_all(DepGraph dg, filesystem::path logfile) {
         try {
             // Compile the file
             // FIXME: Direct stdout/stderr to logfile
-            Compiler c = Compiler(&dg, file);
+            Compiler c = Compiler(&dg, file, clang_path, max_tries);
             CompileResult result = c.run();
 
             // Log all associated output
+            #pragma opm atomic
             log << c.get_output().str();
 
             // Print the matches
@@ -74,9 +73,10 @@ void compile_all(DepGraph dg, filesystem::path logfile) {
                 error_count += 1;
 
             #pragma opm atomic
-            vec_count += v_local;
-            #pragma opm atomic
-            si_count += si_local;
+            {
+                vec_count += v_local;
+                si_count += si_local;
+            }
         }
 
         // If any error occurs, skip this file
@@ -174,10 +174,9 @@ CompileResult Compiler::run() {
     vector<KeyInc> include_dirs;
 
     unordered_set<string> tried_includes;
-    int max_tries = 10;
 
     CompileResult result;
-    for (int n_tries = 0; n_tries < max_tries; n_tries++) {
+    for (int n_tries = 0; n_tries < this->max_tries; n_tries++) {
         // Expand the search tree from the current point
         this->expand();
 
@@ -441,7 +440,7 @@ CompileResult Compiler::compile_one(Node file, Keys includes) {
     // Compile the file
     string command = format(
         "{} -c {} {} -o /dev/null -emit-llvm -O3 -Rpass=loop-vectorize",
-        CLANG_PATH,
+        this->clang_path.string(),
         file.path.string(),
         str_includes);
 

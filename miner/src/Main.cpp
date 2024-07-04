@@ -30,18 +30,20 @@ int main(int argc, char **argv) {
     // Register signal handler
     signal(SIGSEGV, handler);
 
-    // Handle arguments
+    // Default argument values
     struct arguments args;
-    args.threads = 12;
-    args.log = "/dev/null";
+    args.threads   = 12;
+    args.max_tries = 10;
+    args.log       = "/dev/null";
 
+    // Parse the arguments
     argp_parse(&arg_p, argc, argv, 0, 0, &args);
 
     // Set the number of threads to use
     omp_set_num_threads(args.threads);
 
     // Find all source files in the repository
-    filesystem::path path = filesystem::canonical(args.args[0]);
+    filesystem::path path = filesystem::canonical(args.args[1]);
     vector<filesystem::path> cc      = find_files(path, "c");
     vector<filesystem::path> headers = find_files(path, "h");
 
@@ -52,7 +54,8 @@ int main(int argc, char **argv) {
     dg.compute_dependencies();
 
     // Compile each cc file
-    compile_all(dg, args.log);
+    filesystem::path clang_path = args.args[0];
+    compile_all(dg, clang_path, args.log, args.max_tries);
 
     return 0;
 }

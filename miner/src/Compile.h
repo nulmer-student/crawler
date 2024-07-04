@@ -14,7 +14,7 @@ using namespace std;
 namespace Miner {
 
 // Compile all cc files
-void compile_all(DepGraph dg, filesystem::path logfile);
+void compile_all(DepGraph dg, filesystem::path clang_path, filesystem::path logfile, int max_tries);
 
 class Compiler;
 
@@ -121,7 +121,9 @@ struct CompileResult {
 // Compiles a single file, checking all possible header choices:
 class Compiler {
 public:
-    Compiler(DepGraph *dg, Node root) : dg(dg), root(root){ stringstream out; };
+    Compiler(DepGraph *dg, Node root, filesystem::path clang_path, int max_tries)
+        : dg(dg), root(root), max_tries(max_tries),
+        clang_path(clang_path) { stringstream out; };
     CompileResult run();
 
     void insert_parent(Key a, Key b);
@@ -156,10 +158,13 @@ private:
     string dump_stack();
 
     // Keep track of which compile commands we have tried
+    int max_tries;
     unordered_set<string> tried_includes;
     string join_includes(Keys);
     bool already_tried(Keys includes);
     void add_try(Keys includes);
+
+    filesystem::path clang_path;
 
     // Private output stream
     stringstream out;

@@ -7,7 +7,7 @@
 #include <filesystem>
 
 // Number of required arguments
-#define N_REQUIRED 1
+#define N_REQUIRED 2
 
 using namespace std;
 
@@ -17,18 +17,20 @@ const char *argp_program_version = "0.1.0";
 static char doc[] = "TODO: Add docs";
 
 // Required options
-static char args_doc[] = "REPO";
+static char args_doc[] = "CLANG REPO";
 
 // Switch options
 static struct argp_option options[] = {
-    {"threads", 't',    "N", 0, "Number of threads to use"},
-    {"log",     'l', "FILE", 0, "Path to the log"},
+    {"threads",   't',    "N", 0, "Number of threads to use"},
+    {"log",       'l', "FILE", 0, "Path to the log"},
+    {"max-tries", 'm',    "N", 0, "Maximum number of tries to compile a given file"},
     { 0 }
 };
 
 struct arguments {
     char *args[N_REQUIRED];
     int threads;
+    int max_tries;
     filesystem::path log;
 };
 
@@ -41,6 +43,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case 'l':
             arguments->log = filesystem::path(arg);
+            break;
+        case 'm':
+            arguments->max_tries = stoi(arg);
             break;
         case ARGP_KEY_ARG:
             if (state->arg_num >= N_REQUIRED)
