@@ -13,8 +13,8 @@ using namespace std;
 
 namespace Miner {
 
-const char *argp_program_version = "0.1.0";
-static char doc[] = "TODO: Add docs";
+static const char *argp_program_version = "0.1.0";
+static char doc[] = "Using CLANG, search for vectorization opportunities in REPO.";
 
 // Required options
 static char args_doc[] = "CLANG REPO";
