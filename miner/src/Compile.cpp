@@ -7,8 +7,10 @@
 #include <iostream>
 #include <fstream>
 #include <regex>
+#include <algorithm>
 #include <sstream>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 #define CLANG_PATH "/home/nju/.opt/scalar/llvm-bin/bin/clang"
@@ -17,7 +19,7 @@ namespace Miner {
 
 void compile_all(DepGraph dg, filesystem::path logfile) {
     ofstream log;
-    log.open(logfile, ios::app);
+    log.open(logfile, ios::out);
 
     // Store statistics
     int file_count  = 0;
@@ -171,6 +173,8 @@ CompileResult Compiler::run() {
     this->parents = Ans{};
     vector<KeyInc> include_dirs;
 
+    unordered_set<string> tried_includes;
+
     CompileResult result;
     while (true) {
         // Expand the search tree from the current point
@@ -184,15 +188,27 @@ CompileResult Compiler::run() {
                 include_dirs.push_back(fw->include);
         }
 
-        // FIXME: Only compile if we haven't already tried this combination
-
-        // Try to compile the file
+        // Only compile if we haven't already tried this combination
         Keys dirs = dg->find_dirs(include_dirs);
-        result = compile_one(this->root, dirs);
+        bool tried = this->already_tried(dirs);
+        if (!tried) {
+            this->add_try(dirs);
 
-        // Stop if compilation succeeds
-        if (result.success)
-            break;
+            // Try to compile the file
+            result = compile_one(this->root, dirs);
+
+            // Stop if compilation succeeds
+            if (result.success)
+                break;
+        }
+
+        // NOTE: Remove this ↓
+        else {
+            out << "already tried:\n";
+            for (auto d : dirs) {
+                out << d << "\n";
+            }
+        }
 
         // Otherwise backtrack to the last choice-point
         bool cont = this->shrink();
@@ -375,8 +391,38 @@ Node Compiler::parent(Node current) {
     return parents[current.path];
 }
 
+string Compiler::join_includes(Keys includes) {
+    vector<Key> keys;
+    for (auto k : includes) {
+        keys.push_back(k);
+    }
+
+    // Sort the strings, & join them
+    sort(keys.begin(), keys.end(),
+         [](Key a, Key b) { return a > b; });
+
+    // Join the strings
+    string acc;
+
+    for (auto k : keys) {
+        acc += k.string();
+    }
+
+    return acc;
+}
+
+bool Compiler::already_tried(Keys includes) {
+    string str = this->join_includes(includes);
+    return this->tried_includes.contains(str);
+}
+
+void Compiler::add_try(Keys includes) {
+    string str = this->join_includes(includes);
+    this->tried_includes.insert(str);
+}
+
 // =============================================================================
-// Compiler a Single File
+// Compile a Single File
 // =============================================================================
 
 CompileResult Compiler::compile_one(Node file, Keys includes) {

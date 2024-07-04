@@ -7,6 +7,7 @@
 #include <format>
 #include <sstream>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 using namespace std;
@@ -140,10 +141,12 @@ private:
     vector<Action *> stack;
     Keys seen;
 
+    // Found dependency tree
     using Ans = unordered_map<Key, Key, KeyHash, KeyEq>;
     Ans parents;
     Node parent(Node current);
 
+    // Traverse the tree & stop at each choice
     void expand();
     bool shrink();
 
@@ -151,6 +154,12 @@ private:
     void pop();
     void push(Action *action);
     string dump_stack();
+
+    // Keep track of which compile commands we have tried
+    unordered_set<string> tried_includes;
+    string join_includes(Keys);
+    bool already_tried(Keys includes);
+    void add_try(Keys includes);
 
     // Private output stream
     stringstream out;
