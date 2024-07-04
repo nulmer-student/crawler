@@ -174,9 +174,10 @@ CompileResult Compiler::run() {
     vector<KeyInc> include_dirs;
 
     unordered_set<string> tried_includes;
+    int max_tries = 10;
 
     CompileResult result;
-    while (true) {
+    for (int n_tries = 0; n_tries < max_tries; n_tries++) {
         // Expand the search tree from the current point
         this->expand();
 
@@ -195,6 +196,7 @@ CompileResult Compiler::run() {
             this->add_try(dirs);
 
             // Try to compile the file
+            out << "\ntry number: " << n_tries << "\n";
             result = compile_one(this->root, dirs);
 
             // Stop if compilation succeeds
