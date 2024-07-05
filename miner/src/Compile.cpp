@@ -447,7 +447,13 @@ CompileResult Compiler::compile_one(Node file, Keys includes) {
     out << command << "\n";
     ProcessResult result = run_process(command);
     out << result.stdout;
-    // output += result.stderr;
+
+    if (result.stderr != "") {
+      out << "\nOutput:\n";
+      out << "------------------------------------------------------------\n";
+      out << result.stderr;
+      out << "------------------------------------------------------------\n";
+    }
 
     // Parse stderr to find vectorization opportunities
     vector<Match> matches = parse_remarks(result.stderr);
