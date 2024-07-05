@@ -3,6 +3,7 @@
 from database import Database
 from repository import DBRepo
 
+import datetime
 import git
 import os
 from pathlib import Path
@@ -124,6 +125,8 @@ class Miner:
         self.repo_dir = repo_dir
         self.env = env
 
+        self.log_dir = self._log_dir()
+
         # Check if the miner exists
         self.miner = miner
         if not os.path.exists(self.miner):
@@ -141,6 +144,16 @@ class Miner:
         self.intern_db = InternDB()
         self.mine_db = MineDB()
 
+    def _log_dir(self):
+        dir = Path(self.env["LOG_DIR"]).resolve()
+        now = datetime.datetime.now()
+        dir = dir / Path(f"{now.year}-{now.month:02}-{now.day:02}--{now.hour:02}:{now.minute:02}:{now.second:02}")
+        return dir
+
+    def _repo_log(self, id, name):
+        safe_name = name.replace("/", "-")
+        return self.log_dir / Path(f"{safe_name}-{id}.log")
+
     def mine_all(self):
         while True:
             # Get the next repository
@@ -156,14 +169,20 @@ class Miner:
 
     def _mine_one(self, repo):
         real_repo = self._clone(repo.url, repo.name)
-        self._mine(real_repo, repo.id)
+        self._mine(real_repo, repo.id, self._repo_log(repo.id, repo.name))
 
-    def _mine(self, repo, id):
+    def _mine(self, repo, id, logfile):
         s_time = time.time()
+
+        # Create the log directory
+        try:
+            os.makedirs(logfile.parent)
+        except FileExistsError:
+            pass
 
         # Run the miner
         pipe = subprocess.Popen(
-            [self.miner, self.env["CLANG"], repo.working_dir],
+            [self.miner, self.env["CLANG"], repo.working_dir, "--log", logfile],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
