@@ -4,10 +4,11 @@ from database import Database
 from repository import DBRepo
 
 import git
-from pathlib import Path
 import os
+from pathlib import Path
 import subprocess
 import re
+import time
 
 # Setup logging
 import logging
@@ -20,11 +21,10 @@ DEFAULT_MINER=Path("../miner/build/bin/miner")
 class MineDB(Database):
     def _init_db(self):
         super()._init_db()
-
         # Clear the tables
-        self.cursor.execute("delete from mined")
-        self.cursor.execute("delete from matches")
-        self.cursor.execute("delete from files")
+        # self.cursor.execute("delete from mined")
+        # self.cursor.execute("delete from matches")
+        # self.cursor.execute("delete from files")
         self.connection.commit()
 
     def next_repo(self):
@@ -43,11 +43,11 @@ class MineDB(Database):
         else:
             return None
 
-    def set_mined(self, repo_id):
+    def set_mined(self, repo_id, success, error, time):
         try:
             self.cursor.execute(
-                "insert into mined values (?)",
-                (repo_id,)
+                "insert into mined values (?, ?, ?, ?)",
+                (repo_id, success, error, time)
             )
             self.connection.commit()
 
@@ -113,18 +113,16 @@ class InternDB(Database):
 
     def _new_match_id(self, file_id):
         """Gererate a unique file id."""
-        self.cursor.execute(
-            "select ifnull(max(match_id) + 1, 0) from matches where file_id = ?",
-            (file_id,)
-        )
+        self.cursor.execute("select ifnull(max(match_id) + 1, 0) from matches")
         id = self.cursor.fetchone()
         self.connection.commit()
         return id[0]
 
 
 class Miner:
-    def __init__(self, repo_dir=REPO_DIR, miner=DEFAULT_MINER, intern=None):
+    def __init__(self, env, repo_dir=REPO_DIR, miner=DEFAULT_MINER, intern=None):
         self.repo_dir = repo_dir
+        self.env = env
 
         # Check if the miner exists
         self.miner = miner
@@ -152,19 +150,20 @@ class Miner:
 
             # Mine the repository
             repo = self.mine_db.get_repo(id)
+            logger.info(f"Mining '{repo}'")
             self._mine_one(repo)
-
-            # Set this repository as mined
-            self.mine_db.set_mined(id)
+            logger.info(f"Finished mining '{repo}'")
 
     def _mine_one(self, repo):
         real_repo = self._clone(repo.url, repo.name)
         self._mine(real_repo, repo.id)
 
     def _mine(self, repo, id):
+        s_time = time.time()
+
         # Run the miner
         pipe = subprocess.Popen(
-            [self.miner, repo.working_dir],
+            [self.miner, self.env["CLANG"], repo.working_dir],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
@@ -176,11 +175,19 @@ class Miner:
         else:
             self._run_intern_script(output, id)
 
+        e_time = time.time()
+
+        # Set this repository as mined
+        suc, err = self._get_status(output)
+        delta = e_time - s_time
+        self.mine_db.set_mined(id, suc, err, delta)
+
     def _run_intern_script(self, output, id):
         pass
 
     def _intern(self, output, id):
         """Store the results of running the miner into the database."""
+        # Add each match
         pattern = r"([^,]+),(\d+),(\d+),(\d+),(\d+),(\d+)\n"
         for match in re.finditer(pattern, output.decode("utf-8")):
             assert(len(match.groups()) == 6)
@@ -191,6 +198,18 @@ class Miner:
             tile   = match.group(5)
             si     = match.group(6)
             self.intern_db.add_match(path, line, col, vector, tile, si, id)
+
+    def _get_status(self, output):
+        output = output.decode("utf-8")
+        suc = 0
+        for m in re.finditer(r"Successful:\s+(\d+)", output):
+            suc = int(m.group(1))
+
+        err = 0
+        for m in re.finditer(r"Errors:\s+(\d+)", output):
+            err = int(m.group(1))
+
+        return (suc, err)
 
     def _clone(self, url, name):
         """Clone a repository to REPO_DIR."""

@@ -32,6 +32,9 @@ class Database:
             """
             create table if not exists mined (
                 repo_id     int,
+                n_success   int,
+                n_error     int,
+                time        float,
                 primary key (repo_id),
                 foreign key (repo_id) references repos
             )
@@ -43,7 +46,7 @@ class Database:
                 file_id     int,
                 repo_id     int,
                 path        text,
-                primary key (file_id, repo_id),
+                primary key (file_id),
                 foreign key (repo_id) references repos
             )
             """
@@ -59,7 +62,7 @@ class Database:
                 vector      int,
                 width       int,
                 si          int,
-                primary key (match_id, file_id),
+                primary key (match_id),
                 foreign key (file_id) references files
             )
             """

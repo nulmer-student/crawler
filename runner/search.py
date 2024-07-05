@@ -53,9 +53,12 @@ class SearchDB(database.Database):
 
 
 class Search:
-    def __init__(self):
+    def __init__(self, env):
         self.db = SearchDB()
-        self._max_repos = 10
+        # self._max_repos = 1000
+        self._max_repos = 100
+        self._per_page = 100
+        self.env = env
 
     def _rate_limit(self, headers):
         """Rate limit based on HEADERS & return true if there was rate limiting."""
@@ -83,9 +86,18 @@ class Search:
 
         # Convert to repository objects
         while True:
+            api_key = self.env['GITHUB_API_KEY']
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "X-GitHub-Api-Version": "2022-11-28",
+            }
+
             # Query GitHub to get a single page of results
             # FIXME: Proper url formatting
-            results = requests.get(f"https://api.github.com/search/repositories?{query}")
+            results = requests.get(
+                f"https://api.github.com/search/repositories?{query}",
+                headers=headers
+            )
 
             # Check the headers for rate limiting
             limit = self._rate_limit(results.headers)
@@ -100,15 +112,18 @@ class Search:
                 return (repos, incomplete)
             else:
                 print(f"Items are missing, waiting")
+                with open("missing.log", "a") as f:
+                    print(results.headers)
+                    print(parsed, file=f)
                 time.sleep(5)
 
     def run(self):
         found = 0       # Number we have found
-        page_no = 0     # Current page number
+        page_no = 1     # Current page number
 
         while found < self._max_repos:
             # Get the next page & insert into the database
-            page_size = min(60, self._max_repos - found)
+            page_size = min(self._per_page, self._max_repos - found)
             repos, incomplete = self._get_page(page_no, page_size)
             new = self.db.insert_repos(repos)
 

@@ -2,6 +2,7 @@
 
 from miner import DEFAULT_MINER, Miner
 from search import Search
+from env import load_env
 
 import sys
 
@@ -15,15 +16,16 @@ def main():
     logging.basicConfig(filename="./log", level=logging.INFO)
     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
+    # Load environment variables
+    env = load_env()
+
     # Search for repos
-    # searcher = Search()
+    # searcher = Search(env)
     # searcher.run()
 
     # Test miner
-    miner = Miner()
+    miner = Miner(env)
     miner.mine_all()
-    # miner._mine_one("https://github.com/wg/wrk.git", "wrk")
-    # miner._mine_one("https://github.com/git/git", "git")
 
     pass
 
