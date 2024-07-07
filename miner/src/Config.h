@@ -1,5 +1,5 @@
-#ifndef CONFIG_H_
-#define CONFIG_H_
+#ifndef CRAWLER_CONFIG_H_
+#define CRAWLER_CONFIG_H_
 
 #include <argp.h>
 #include <bits/types/error_t.h>

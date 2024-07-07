@@ -1,7 +1,8 @@
-#ifndef COMPILE_H_
-#define COMPILE_H_
+#ifndef CRAWLER_COMPILE_H_
+#define CRAWLER_COMPILE_H_
 
 #include "Deps.h"
+#include "PreProcess.h"
 
 #include <filesystem>
 #include <format>
@@ -123,7 +124,7 @@ class Compiler {
 public:
     Compiler(DepGraph *dg, Node root, filesystem::path clang_path, int max_tries)
         : dg(dg), root(root), max_tries(max_tries),
-        clang_path(clang_path) { stringstream out; };
+        clang_path(clang_path) { stringstream out; root_contents = insert_pragma(root.path); };
     CompileResult run();
 
     void insert_parent(Key a, Key b);
@@ -132,6 +133,8 @@ public:
 private:
     DepGraph *dg;   // File dependency graph
     Node root;      // File that we are compiling
+
+    string root_contents;
 
     // Try to complie a single file
     CompileResult compile_one(Node file, Keys includes);

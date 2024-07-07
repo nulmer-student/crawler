@@ -439,20 +439,19 @@ CompileResult Compiler::compile_one(Node file, Keys includes) {
 
     // Compile the file
     string command = format(
-        "{} -c {} {} -o /dev/null -emit-llvm -O3 -Rpass=loop-vectorize",
+        "{} -c -x c {} -o /dev/null -emit-llvm -O3 -Rpass=loop-vectorize -",
         this->clang_path.string(),
-        file.path.string(),
         str_includes);
 
     out << command << "\n";
-    ProcessResult result = run_process(command);
+    ProcessResult result = run_process(command, this->root_contents);
     out << result.stdout;
 
     if (result.stderr != "") {
-      out << "\nOutput:\n";
-      out << "------------------------------------------------------------\n";
-      out << result.stderr;
-      out << "------------------------------------------------------------\n";
+        out << "\nOutput:\n";
+        out << "------------------------------------------------------------\n";
+        out << result.stderr;
+        out << "------------------------------------------------------------\n";
     }
 
     // Parse stderr to find vectorization opportunities
