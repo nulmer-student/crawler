@@ -20,9 +20,8 @@ struct ProcessResult {
     string stderr;
 };
 
-ProcessResult test_run(string command, string stdin);
-
 // Utility functions
+ProcessResult run_process(string command, string stdin);
 ProcessResult run_process(string command);
 vector<filesystem::path> find_files(filesystem::path dir, string extension);
 vector<Include> find_includes(filesystem::path file);

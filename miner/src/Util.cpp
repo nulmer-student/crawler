@@ -1,7 +1,9 @@
 #include "Util.h"
 #include "Include.h"
 
+#include <array>
 #include <cstdio>
+#include <cstdlib>
 #include <fcntl.h>
 #include <filesystem>
 #include <fstream>
@@ -21,81 +23,109 @@ using namespace std;
 
 namespace Miner {
 
-ProcessResult test_run(string command, string stdin) {
-    // FIXME: Use pipes instead of temp files
+ProcessResult run_process(string command, string stdin) {
+    const int READ  = 0;
+    const int WRITE = 1;
 
-    // Create temp files for stdout / stderr
-    filesystem::path out_path = std::tmpnam(nullptr);
-    filesystem::path err_path = std::tmpnam(nullptr);
+    int infd[2]  = {0, 0};
+    int outfd[2] = {0, 0};
+    int errfd[2] = {0, 0};
 
-    // Modify the command to use redirects
-    string mod_command = format(
-        "{} > '{}' 2> '{}'",
-        command,
-        out_path.string(),
-        err_path.string());
+    // Open the pipes
+    int rc = pipe(infd);
+    if (rc < 0)
+        throw std::runtime_error("Failed to open pipe");
 
-    // Run the command
-    FILE *fp = popen(mod_command.c_str(), "w");
-    if (fp == nullptr)
-        throw std::runtime_error("Command failure");
-
-    // Write to stdin
-    for (char &c : stdin) {
-        fputc(c, fp);
+    rc = pipe(outfd);
+    if (rc < 0) {
+        close(infd[READ]);
+        close(infd[WRITE]);
+        throw std::runtime_error("Failed to open pipe");
     }
+
+    rc = pipe(errfd);
+    if (rc < 0) {
+        close(infd[READ]);
+        close(infd[WRITE]);
+        close(outfd[READ]);
+        close(outfd[WRITE]);
+        throw std::runtime_error("Failed to open pipe");
+    }
+
+    // Fork and run the command
+    int pid = fork();
+
+    // Parent path
+    if (pid > 0) {
+        // Close un-needed ends
+        close(infd[READ]);
+        close(outfd[WRITE]);
+        close(errfd[WRITE]);
+
+        if (write(infd[WRITE], stdin.data(), stdin.size()) < 0)
+            throw std::runtime_error("Failed to write to stdin pipe");
+
+        close(infd[WRITE]);
+    }
+
+    // Child path
+    else if (pid == 0) {
+        // Override std files with pipes
+        dup2(infd[READ], STDIN_FILENO);
+        dup2(outfd[WRITE], STDOUT_FILENO);
+        dup2(errfd[WRITE], STDERR_FILENO);
+
+        // Close un-needed ends
+        close(infd[WRITE]);
+        close(outfd[READ]);
+        close(errfd[READ]);
+
+        execl("/bin/bash", "bash", "-c", command.c_str(), nullptr);
+        exit(EXIT_SUCCESS);
+    }
+
+    // Handle fork errors
+    if (pid < 0) {
+        close(infd[READ]);
+        close(infd[WRITE]);
+        close(outfd[READ]);
+        close(outfd[WRITE]);
+        close(errfd[READ]);
+        close(errfd[WRITE]);
+        throw std::runtime_error("Failed to fork");
+    }
+
+    // Get the results
+    int status = 0;
+    waitpid(pid, &status, 0);
 
     // Read in stdout
-    cout << out_path << "\n";
-    ifstream out_file(out_path);
-    if (!out_file.is_open())
-        throw runtime_error("Failed to open stdout file");
+    std::array<char, 256> out_buf;
+    int bytes = 0;
 
-    string out; string line;
-    while (getline(out_file, line)) {
-        out += line;
-        out += "\n";
-    }
+    string out = "";
+    do {
+        bytes = read(outfd[READ], out_buf.data(), out_buf.size());
+        out.append(out_buf.data(), bytes);
+    } while (bytes > 0);
 
-    out_file.close();
-    remove(out_path);
+    // Read in stderr
+    std::array<char, 256> err_buf;
+    bytes = 0;
 
-    return ProcessResult(0, out, "");
+    string err = "";
+    do {
+        bytes = read(errfd[READ], err_buf.data(), err_buf.size());
+        err.append(err_buf.data(), bytes);
+    } while (bytes > 0);
+
+    close(outfd[READ]);
+    close(errfd[READ]);
+    return ProcessResult(status, out, err);
 }
 
 ProcessResult run_process(string command) {
-    // FIXME: Capture stderr in a non-stupid way
-    filesystem::path tmp_path = std::tmpnam(nullptr);
-
-    // Append stderr redirect
-    command += format(" 2> '{}'", tmp_path.string());
-
-    // Run the command
-    FILE *fp = popen(command.c_str(), "r");
-    if (fp == nullptr)
-        throw std::runtime_error("Command failure");
-
-    // Read in stdout
-    int c; string acc;
-    while((c = fgetc(fp)) != EOF)
-        acc += c;
-
-    // Read in stderr
-    ifstream err_file(tmp_path);
-    if (!err_file.is_open())
-        throw runtime_error("Tmp file not found");
-
-    string err; string line;
-    while (getline(err_file, line)) {
-        err += line;
-        err += "\n";    // geline removes newlines
-    }
-
-    err_file.close();
-    remove(tmp_path);
-
-    int code = WEXITSTATUS(pclose(fp));
-    return ProcessResult(code, acc, err);
+    return run_process(command, "");
 }
 
 vector<filesystem::path> find_files(filesystem::path dir, string extension) {
