@@ -52,6 +52,11 @@ ProcessResult run_process(string command, string stdin) {
         throw std::runtime_error("Failed to open pipe");
     }
 
+    // Increase the size of the pipes
+    const int SIZE = 1048576;
+    fcntl(infd[READ],   F_SETPIPE_SZ, SIZE);
+    fcntl(outfd[WRITE], F_SETPIPE_SZ, SIZE);
+
     // Fork and run the command
     int pid = fork();
 
@@ -129,18 +134,29 @@ ProcessResult run_process(string command) {
 }
 
 vector<filesystem::path> find_files(filesystem::path dir, string extension) {
+    // The output may be too large to use a pipe, so we will use redirects
+    filesystem::path tmp_path = std::tmpnam(nullptr);
+
     // Find files
-    string command = format("find {} -name '*.{}'", dir.string(), extension);
-    string output = run_process(command).stdout;
+    string command = format(
+        "find {} -name '*.{}' > {}",
+        dir.string(),
+        extension,
+        tmp_path.string());
+    run_process(command);
 
-    // Convert to a vector of strings
-    string line;
+    // Read in the input
     vector<filesystem::path> acc;
-    stringstream stream(output);
+    ifstream tmp_file(tmp_path);
+    string line;
 
-    while (getline(stream, line, '\n')) {
+    while (getline(tmp_file, line, '\n')) {
         acc.push_back(filesystem::path(line));
     }
+
+    // Cleanup
+    tmp_file.close();
+    remove(tmp_path);
 
     return acc;
 }
