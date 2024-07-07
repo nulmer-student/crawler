@@ -124,9 +124,15 @@ ProcessResult run_process(string command, string stdin) {
         err.append(err_buf.data(), bytes);
     } while (bytes > 0);
 
+    // Set the exit code
+    int code = 0;
+    if (WIFEXITED(status)) {
+        code = WEXITSTATUS(status);
+    }
+
     close(outfd[READ]);
     close(errfd[READ]);
-    return ProcessResult(status, out, err);
+    return ProcessResult(code, out, err);
 }
 
 ProcessResult run_process(string command) {

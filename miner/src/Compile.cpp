@@ -439,13 +439,17 @@ CompileResult Compiler::compile_one(Node file, Keys includes) {
 
     // Compile the file
     string command = format(
-        "{} -c -x c {} -o /dev/null -emit-llvm -O3 -Rpass=loop-vectorize -",
+        "timeout 5 {} -c -x c {} -o /dev/null -emit-llvm -O3 -Rpass=loop-vectorize -",
         this->clang_path.string(),
         str_includes);
 
     out << command << "\n";
     ProcessResult result = run_process(command, this->root_contents);
     out << result.stdout;
+
+    if (result.exit_code == 124) {
+        out << "Timed out\n";
+    }
 
     if (result.stderr != "") {
         out << "\nOutput:\n";
