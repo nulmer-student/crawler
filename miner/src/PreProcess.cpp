@@ -20,7 +20,7 @@ string insert_pragma(filesystem::path path) {
 
     // Insert a pragma before each for loop
     string line;
-    regex pattern("\\s*for\\s*\\(");
+    regex pattern("\\s*\\bfor\\b\\s*\\(");
     smatch match;
     while (getline(file, line)) {
         // If this line starts a for loop, insert the pragma
