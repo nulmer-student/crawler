@@ -182,7 +182,11 @@ class Miner:
 
         # Run the miner
         pipe = subprocess.Popen(
-            [self.miner, self.env["CLANG"], repo.working_dir, "--log", logfile],
+            [
+                self.miner, self.env["CLANG"], repo.working_dir,
+                "--log", logfile,
+                "--threads", "12"
+            ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )

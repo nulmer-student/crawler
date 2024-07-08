@@ -20,14 +20,12 @@ def main():
     env = load_env()
 
     # Search for repos
-    # searcher = Search(env)
-    # searcher.run()
+    searcher = Search(env)
+    searcher.run()
 
-    # Test miner
+    # Run the miner on each repository
     miner = Miner(env)
     miner.mine_all()
-
-    pass
 
 
 if __name__ == "__main__":
