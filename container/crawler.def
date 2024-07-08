@@ -1,0 +1,15 @@
+BootStrap: library
+From: ubuntu:22.04
+
+%post
+    apt-get -y update
+    apt-get -y install cowsay lolcat
+
+%environment
+    export LC_ALL=C
+
+%runscript
+    date | cowsay | lolcat
+
+%labels
+    Author Nathan Ulmer
