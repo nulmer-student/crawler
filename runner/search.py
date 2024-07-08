@@ -142,6 +142,11 @@ class Search:
 
         max_stars = INITIAL_MAX
 
+        # If there are already, results, set the max
+        old_min = self.db.min_stars()
+        if old_min:
+            max_stars = old_min
+
         while found < self._max_repos:
             # Get the next page & insert into the database
             page_size = min(self._per_page, self._max_repos - found)

@@ -10,6 +10,7 @@ from pathlib import Path
 import subprocess
 import re
 import time
+import shutil
 
 # Setup logging
 import logging
@@ -204,6 +205,10 @@ class Miner:
         suc, err = self._get_status(output)
         delta = e_time - s_time
         self.mine_db.set_mined(id, suc, err, delta)
+
+        # Delete the files
+        shutil.rmtree(repo.working_dir)
+        os.rmdir(repo.working_dir)
 
     def _run_intern_script(self, output, id):
         pass
