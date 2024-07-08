@@ -6,6 +6,14 @@ import repository
 import requests
 import time
 
+# Setup logging
+import logging
+logger = logging.getLogger(__name__)
+
+
+INITIAL_MAX=10000000
+
+
 class SearchDB(database.Database):
     def _insert_repo(self, repo):
         """Insert a repository into the database."""
@@ -29,8 +37,8 @@ class SearchDB(database.Database):
             )
             return True
         else:
-            print(f"Already seen: {id}, {name}, {clone_url}, {stars}")
-            print(self.cursor.fetchone())
+            logger.info(f"Already seen: {id}, {name}, {clone_url}, {stars}")
+            logger.info(self.cursor.fetchone())
             return False
 
     def insert_repos(self, repo_list):
@@ -46,19 +54,29 @@ class SearchDB(database.Database):
             self.connection.commit()
 
         except Exception as e:
-            print(f"Error in transaction: {e}")
+            logger.info(f"Error in transaction: {e}")
             self.connection.rollback()
 
         return count
+
+    def min_stars(self):
+        """Return the minimum start count of all repositories."""
+        self.cursor.execute("select min(stars) from repos")
+
+        if self.cursor.rowcount == 1:
+            return self.cursor.fetchone()[0]
+        else:
+            return INITIAL_MAX
 
 
 class Search:
     def __init__(self, env):
         self.db = SearchDB()
-        # self._max_repos = 1000
-        self._max_repos = 100
-        self._per_page = 100
         self.env = env
+
+        self._max_repos = 40000
+        self._per_page = 100
+        self._min_stars = 500
 
     def _rate_limit(self, headers):
         """Rate limit based on HEADERS & return true if there was rate limiting."""
@@ -72,17 +90,23 @@ class Search:
 
         # Sleep if required
         if diff != 0:
-            print(f"Rate limiting for {diff:.2f} seconds")
+            logger.info(f"Rate limiting for {diff:.2f} seconds")
             time.sleep(diff)
             return True
 
         # Limit not reached
         return False
 
-    def _get_page(self, page_no, per_page):
+    def _get_page(self, page_no, per_page, max):
         """Get the n'th page of the query."""
         # Query the most starred C repositories
-        query = f"q=language:c&sort=stars&order=desc&per_page={per_page}&page={page_no}"
+        query = f"q=language:c" \
+            + f"+stars:{self._min_stars}..{max}" \
+            + f"&sort=stars" \
+            + f"&order=desc" \
+            + f"&per_page={per_page}" \
+            + f"&page={page_no}"
+        logger.info(query)
 
         # Convert to repository objects
         while True:
@@ -108,31 +132,38 @@ class Search:
             parsed = results.json()
             if "items" in parsed:
                 repos = [repository.Repo(data) for data in parsed["items"]]
-                incomplete = parsed["incomplete_results"]
-                return (repos, incomplete)
+                return (repos, False)
             else:
-                print(f"Items are missing, waiting")
-                with open("missing.log", "a") as f:
-                    print(results.headers)
-                    print(parsed, file=f)
-                time.sleep(5)
+                return ([], True)
 
     def run(self):
         found = 0       # Number we have found
         page_no = 1     # Current page number
 
+        max_stars = INITIAL_MAX
+
         while found < self._max_repos:
             # Get the next page & insert into the database
             page_size = min(self._per_page, self._max_repos - found)
-            repos, incomplete = self._get_page(page_no, page_size)
-            new = self.db.insert_repos(repos)
+            repos, need_new = self._get_page(page_no, page_size, max_stars)
 
-            # Decide if we should continue fetching
-            found += new
-            page_no += 1
+            # If there are results, insert them
+            if not need_new:
+                new = self.db.insert_repos(repos)
 
-            print(f"Found '{found}' repositories")
+                # Decide if we should continue fetching
+                found += new
+                page_no += 1
 
-            # Exit if there are no more results
-            # if not incomplete:
-            #     break
+                logger.info(f"Found '{found}' repositories")
+
+            # If we have used the search size, create new upper bound
+            else:
+                max_stars = self.db.min_stars()
+                page_no = 1
+                logger.info(f"max : {max_stars}")
+                time.sleep(5)
+
+            # Exit if we get to the min
+            if max_stars <= self._min_stars:
+                break
