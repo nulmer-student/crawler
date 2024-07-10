@@ -1,13 +1,19 @@
 BootStrap: library
-From: debian:11
+From: ubuntu
 
 
 %post
     # Install system dependencies
     apt-get -y update
     apt-get -y install sudo wget python3 gnupg lsb-release \
-               software-properties-common mariadb-server \
-               vim git cmake
+               software-properties-common \
+               vim git cmake pip \
+               mariadb-server libmariadb3 libmariadb-dev
+
+    add-apt-repository -y ppa:ubuntu-toolchain-r/test
+    apt -y install g++-13
+
+    pip install git-python requests python-dotenv mariadb #"mariadb==1.0.11"
 
     # Setup mariadb
     killall mariadbd || true
@@ -18,14 +24,33 @@ From: debian:11
     mariadb -e "create user stats@localhost"
     mariadb -e "grant select on crawler.* to stats@localhost"
 
-    # Install LLVM
+    # Setup the crawler
     cd /opt
-    wget https://apt.llvm.org/llvm.sh
-    chmod +x llvm.sh
-    ./llvm.sh 17
+    git clone https://github.com/nulmer-student/crawler.git
+
+    # Setup Runner
+    cd /opt/crawler/runner
+    mkdir -p /opt/crawler/runner/logs
+    cp /opt/.env /opt/crawler/runner/.env
+    # TODO: Fix database user
+
+    # Setup Miner
+    cd /opt/crawler/miner
+    mkdir build
+    cd build
+    cmake .. -DCMAKE_BUILD_TYPE=Release \
+             -DCMAKE_CXX_COMPILER=$(which g++-13)
+    make -j12
+
+
+%files
+   ../runner/.env /opt/.env
+
 
 %environment
     export LC_ALL=C
+    export PATH=/usr/games:$PATH
+
 
 %runscript
     mariadb --version
