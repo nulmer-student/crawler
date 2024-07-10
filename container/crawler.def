@@ -1,15 +1,35 @@
 BootStrap: library
-From: ubuntu:22.04
+From: debian:11
+
 
 %post
+    # Install system dependencies
     apt-get -y update
-    apt-get -y install cowsay lolcat
+    apt-get -y install sudo wget python3 gnupg lsb-release \
+               software-properties-common mariadb-server \
+               vim git cmake
+
+    # Setup mariadb
+    killall mariadbd || true
+    service mariadb start
+    mariadb -e "create database crawler"
+    mariadb -e "create user crawler@localhost"
+    mariadb -e "grant all privileges on crawler.* to crawler@localhost"
+    mariadb -e "create user stats@localhost"
+    mariadb -e "grant select on crawler.* to stats@localhost"
+
+    # Install LLVM
+    cd /opt
+    wget https://apt.llvm.org/llvm.sh
+    chmod +x llvm.sh
+    ./llvm.sh 17
 
 %environment
     export LC_ALL=C
 
 %runscript
-    date | cowsay | lolcat
+    mariadb --version
+
 
 %labels
     Author Nathan Ulmer
