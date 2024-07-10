@@ -71,8 +71,8 @@ class SearchDB(database.Database):
 
 class Search:
     def __init__(self, env):
-        self.db = SearchDB()
         self.env = env
+        self.db = SearchDB(self.env)
 
         self._max_repos = 40000
         self._per_page = 100

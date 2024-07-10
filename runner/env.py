@@ -10,4 +10,5 @@ def load_env():
     acc["CLANG"]          = os.getenv("CLANG")
     acc["GITHUB_API_KEY"] = os.getenv("GITHUB_API_KEY")
     acc["LOG_DIR"]        = os.getenv("LOG_DIR")
+    acc["DB_USER"]        = os.getenv("DB_USER")
     return acc

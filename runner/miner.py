@@ -142,8 +142,8 @@ class Miner:
                 exit(1)
 
         # Connect to the database
-        self.intern_db = InternDB()
-        self.mine_db = MineDB()
+        self.intern_db = InternDB(self.env)
+        self.mine_db = MineDB(self.env)
 
     def _log_dir(self):
         dir = Path(self.env["LOG_DIR"]).resolve()

@@ -3,11 +3,11 @@
 import mariadb
 
 class Database:
-    def __init__(self):
+    def __init__(self, env):
         """Connect to & initialize the database."""
         # Initialize the database
         self.connection = mariadb.connect(
-            user="nju",
+            user=env["DB_USER"],
             password="",
             host="localhost",
             database="crawler"

@@ -17,7 +17,7 @@ def main():
     env = load_env()
 
     # Setup logging
-    logfile = Path(env["LOG_DIR"]) / "main"
+    logfile = Path(env["LOG_DIR"]) / Path("main.log")
     logging.basicConfig(filename=logfile, level=logging.INFO)
     logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
