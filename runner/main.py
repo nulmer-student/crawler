@@ -5,6 +5,7 @@ from search import Search
 from env import load_env
 
 import sys
+from pathlib import Path
 
 # Setup logging
 import logging
@@ -12,12 +13,13 @@ logger = logging.getLogger(__name__)
 
 
 def main():
-    # Setup logging
-    logging.basicConfig(filename="./log", level=logging.INFO)
-    logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
-
     # Load environment variables
     env = load_env()
+
+    # Setup logging
+    logfile = Path(env["LOG_DIR"]) / "main"
+    logging.basicConfig(filename=logfile, level=logging.INFO)
+    logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
 
     # Search for repos
     searcher = Search(env)

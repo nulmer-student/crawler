@@ -208,7 +208,6 @@ class Miner:
 
         # Delete the files
         shutil.rmtree(repo.working_dir)
-        os.rmdir(repo.working_dir)
 
     def _run_intern_script(self, output, id):
         pass
