@@ -49,7 +49,7 @@ void compile_all(DepGraph dg, filesystem::path clang_path, filesystem::path logf
             CompileResult result = c.run();
 
             // Log all associated output
-            #pragma opm atomic
+            #pragma opm critical (print)
             log << c.get_output().str();
 
             // Print the matches
@@ -72,7 +72,7 @@ void compile_all(DepGraph dg, filesystem::path clang_path, filesystem::path logf
                 #pragma omp atomic
                 error_count += 1;
 
-            #pragma opm atomic
+            #pragma opm critical (inc)
             {
                 vec_count += v_local;
                 si_count += si_local;
