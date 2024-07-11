@@ -7,13 +7,13 @@ From: ubuntu
     apt-get -y update
     apt-get -y install sudo wget python3 gnupg lsb-release \
                software-properties-common \
-               vim git cmake pip \
-               mariadb-server libmariadb3 libmariadb-dev
+               vim git pip \
+               mariadb-server libmariadb3 libmariadb-dev \
+               cmake ninja-build lld \
 
+    # Install gcc 13
     add-apt-repository -y ppa:ubuntu-toolchain-r/test
     apt -y install g++-13
-
-    pip install git-python requests python-dotenv mariadb #"mariadb==1.0.11"
 
     # Setup mariadb
     killall mariadbd || true
@@ -29,10 +29,11 @@ From: ubuntu
     git clone https://github.com/nulmer-student/crawler.git
 
     # Setup Runner
+    pip install git-python requests python-dotenv mariadb
+
     cd /opt/crawler/runner
     mkdir -p /opt/crawler/runner/logs
     cp /opt/.env /opt/crawler/runner/.env
-    # TODO: Fix database user
 
     # Setup Miner
     cd /opt/crawler/miner
@@ -42,9 +43,40 @@ From: ubuntu
              -DCMAKE_CXX_COMPILER=$(which g++-13)
     make -j12
 
+    # Install LLVM
+    cd /opt
+    wget https://apt.llvm.org/llvm.sh
+    chmod +x llvm.sh
+    ./llvm.sh 17
+
+    # Build the cost model
+    cd /opt
+    git clone https://github.com/reza-ghanbari/llvm-project.git
+    cd /opt/llvm-project
+    git checkout analytical-cost-model
+
+    cmake ../llvm \
+        -GNinja \
+        -DLLVM_OPTIMIZED_TABLEGEN=ON \
+        -DLLVM_INSTALL_UTILS=ON \
+        -DBUILD_SHARED_LIBS=ON \
+        -DLLVM_ENABLE_RTTI=ON \
+        -DLLVM_ENABLE_ASSERTIONS=ON \
+        -DLLVM_INCLUDE_BENCHMARKS=OFF \
+        -DLLVM_CCACHE_BUILD=OFF \
+        -DLLVM_USE_NEWPM=ON \
+        -DLLVM_PARALLEL_LINK_JOBS=2 \
+        -DLLVM_TARGETS_TO_BUILD="X86" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;lld" \
+        -DLLVM_USE_LINKER=lld \
+        -DCMAKE_C_COMPILER=clang-17 \
+        -DCMAKE_CXX_COMPILER=clang++-17
+    cmake --install . --prefix "/opt/llvm-bin"
+
 
 %files
-   ../runner/.env /opt/.env
+   ./.env /opt/.env
 
 
 %environment
@@ -53,7 +85,8 @@ From: ubuntu
 
 
 %runscript
-    mariadb --version
+    cd /opt/crawler/runner
+    python3 main.py
 
 
 %labels
