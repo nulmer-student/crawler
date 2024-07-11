@@ -173,6 +173,12 @@ class Miner:
         self._mine(real_repo, repo.id, self._repo_log(repo.id, repo.name))
 
     def _mine(self, repo, id, logfile):
+        # Skip if we failed to clone
+        if repo is None:
+            logger.error("Failed to clone the repository")
+            self.mine_db.set_mined(id, None, None, 0.0)
+            return
+
         s_time = time.time()
 
         # Create the log directory
@@ -186,7 +192,7 @@ class Miner:
             [
                 self.miner, self.env["CLANG"], repo.working_dir,
                 "--log", logfile,
-                "--threads", "12"
+                "--threads", self.env["N_THREADS"]
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
