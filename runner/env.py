@@ -12,6 +12,6 @@ def load_env():
     acc["CLANG"]          = os.getenv("CLANG")
     acc["GITHUB_API_KEY"] = os.getenv("GITHUB_API_KEY")
     acc["LOG_DIR"]        = os.getenv("LOG_DIR")
-    acc["DB_USER"]        = os.getenv("DB_USER")
+    acc["DB_PATH"]        = os.getenv("DB_PATH")
     acc["N_THREADS"]      = os.getenv("N_THREADS")
     return acc

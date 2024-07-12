@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
 
-import mariadb
+import sqlite3
 
 class Database:
     def __init__(self, env):
         """Connect to & initialize the database."""
         # Initialize the database
-        self.connection = mariadb.connect(
-            user=env["DB_USER"],
-            password="",
-            host="localhost",
-            database="crawler"
-        )
+        self.connection = sqlite3.connect(env["DB_PATH"])
         self.cursor = self.connection.cursor()
+        self.cursor.execute("pragma foreign_keys=ON")
         self._init_db()
 
     def _init_db(self):

@@ -40,8 +40,9 @@ class MineDB(Database):
             """)
 
         # Return None if there are no more repos
-        if self.cursor.rowcount == 1:
-            return self.cursor.fetchone()[0]
+        results = self.cursor.fetchall()
+        if len(results) == 1:
+            return results[0][0]
         else:
             return None
 
@@ -63,8 +64,10 @@ class MineDB(Database):
             (repo_id,)
         )
 
-        if self.cursor.rowcount == 1:
-            repo = self.cursor.fetchone()
+        results = self.cursor.fetchall()
+
+        if len(results) == 1:
+            repo = results[0]
             return DBRepo(repo[0], repo[1], repo[2], repo[3])
         else:
             logger.exception(f"Missing repo '{repo_id}'")
@@ -93,11 +96,13 @@ class InternDB(Database):
             (path, repo_id)
         )
 
-        if self.cursor.rowcount == 1:
-            return self.cursor.fetchone()[0]
+        # If the file exists, return its id
+        results = self.cursor.fetchall()
+        if len(results) != 0:
+            return results[0][0]
 
         # Otherwise, insert the file
-        if self.cursor.rowcount == 0:
+        if len(results) == 0:
             id = self._new_file_id()
             self.cursor.execute(
                 "insert into files values (?, ?, ?)",
@@ -108,17 +113,17 @@ class InternDB(Database):
 
     def _new_file_id(self):
         """Gererate a unique file id."""
-        self.cursor.execute("select ifnull(max(file_id) + 1, 0) from files")
-        id = self.cursor.fetchone()
+        self.cursor.execute("select ifnull(max(file_id), 0) + 1 from files")
+        id = self.cursor.fetchall()[0][0]
         self.connection.commit()
-        return id[0]
+        return id
 
     def _new_match_id(self, file_id):
         """Gererate a unique file id."""
-        self.cursor.execute("select ifnull(max(match_id) + 1, 0) from matches")
-        id = self.cursor.fetchone()
+        self.cursor.execute("select ifnull(max(match_id), 0) + 1 from matches")
+        id = self.cursor.fetchall()[0][0]
         self.connection.commit()
-        return id[0]
+        return id
 
 
 class Miner:

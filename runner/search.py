@@ -29,16 +29,18 @@ class SearchDB(database.Database):
             (id,)
         )
 
-        # Only insert if the repo is not present
-        if self.cursor.rowcount == 0:
+        # Don't insert if the repo is already there
+        results = self.cursor.fetchall()
+        if len(results) == 0:
             self.cursor.execute(
                 "insert into repos values (?, ?, ?, ?)",
                 (id, name, clone_url, stars)
             )
             return True
+
         else:
             logger.info(f"Already seen: {id}, {name}, {clone_url}, {stars}")
-            logger.info(self.cursor.fetchone())
+            # logger.info(self.cursor.fetchone())
             return False
 
     def insert_repos(self, repo_list):
@@ -62,11 +64,12 @@ class SearchDB(database.Database):
     def min_stars(self):
         """Return the minimum start count of all repositories."""
         self.cursor.execute("select min(stars) from repos")
+        result = self.cursor.fetchall()[0][0]
 
-        if self.cursor.rowcount == 1:
-            return self.cursor.fetchone()[0]
-        else:
+        if result is None:
             return INITIAL_MAX
+        else:
+            return int(result)
 
 
 class Search:
@@ -142,7 +145,7 @@ class Search:
 
         max_stars = INITIAL_MAX
 
-        # If there are already, results, set the max
+        # If there are already results, set the max accordingly
         old_min = self.db.min_stars()
         if old_min:
             max_stars = old_min
