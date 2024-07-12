@@ -212,6 +212,11 @@ class Miner:
 
         e_time = time.time()
 
+        # Compress the logfile
+        if os.path.exists(logfile):
+            subprocess.run(["tar", "-czf", f"{logfile}.tar.gz", logfile])
+            os.remove(logfile)
+
         # Set this repository as mined
         suc, err = self._get_status(output)
         delta = e_time - s_time
