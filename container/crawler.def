@@ -8,32 +8,24 @@ From: ubuntu
     apt-get -y install sudo wget python3 gnupg lsb-release \
                software-properties-common \
                vim git pip \
-               mariadb-server libmariadb3 libmariadb-dev \
+               sqlite3 \
                cmake ninja-build lld \
 
     # Install gcc 13
     add-apt-repository -y ppa:ubuntu-toolchain-r/test
     apt -y install g++-13
 
-    # Setup mariadb
-    killall mariadbd || true
-    service mariadb start
-    mariadb -e "create database crawler"
-    mariadb -e "create user crawler@localhost"
-    mariadb -e "grant all privileges on crawler.* to crawler@localhost"
-    mariadb -e "create user stats@localhost"
-    mariadb -e "grant select on crawler.* to stats@localhost"
-
     # Setup the crawler
     cd /opt
     git clone https://github.com/nulmer-student/crawler.git
 
     # Setup Runner
-    pip install git-python requests python-dotenv mariadb
-
-    cd /opt/crawler/runner
-    mkdir -p /opt/crawler/runner/logs
+    pip install git-python requests python-dotenv
     cp /opt/.env /opt/crawler/runner/.env
+    mkdir -p /opt/logs
+    chmod a+rwx /opt/logs
+    mkdir -p /opt/db
+    chmod a+rwx /opt/db
 
     # Setup Miner
     cd /opt/crawler/miner
