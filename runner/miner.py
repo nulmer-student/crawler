@@ -202,13 +202,20 @@ class Miner:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
-        output = pipe.communicate()[0]
+
+        success = True
+        try:
+            output = pipe.communicate(timeout=60*30)[0]
+        except subprocess.TimeoutExpired:
+            logger.error(f"Timed out for {id}")
+            success = False
 
         # Run the result interning script on the output of the miner
-        if self.intern is None:
-            self._intern(output, id)
-        else:
-            self._run_intern_script(output, id)
+        if success:
+            if self.intern is None:
+                self._intern(output, id)
+            else:
+                self._run_intern_script(output, id)
 
         e_time = time.time()
 
@@ -218,7 +225,9 @@ class Miner:
             os.remove(logfile)
 
         # Set this repository as mined
-        suc, err = self._get_status(output)
+        suc, err = 0, 0
+        if success:
+            suc, err = self._get_status(output)
         delta = e_time - s_time
         self.mine_db.set_mined(id, suc, err, delta)
 
