@@ -70,9 +70,13 @@ From: ubuntu
     ninja -j 12
     cmake --install . --prefix "/opt/llvm-bin"
 
+    # Install the most popular dependencies
+    # apt -y install $(cat /opt/packages.txt)
+
 
 %files
    ./.env /opt/.env
+   ./packages.txt /opt/packages.txt
 
 
 %environment
