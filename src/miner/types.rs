@@ -35,7 +35,7 @@ impl File {
     }
 
     /// Create a new file realtive to DIRECTORY.
-    pub fn _relative(string: &str, directory: &PathBuf) -> Self {
+    pub fn relative(string: &str, directory: &PathBuf) -> Self {
         let path: PathBuf = PathBuf::from(string)
             .strip_prefix(directory)
             .unwrap()
@@ -63,15 +63,30 @@ impl File {
 // =============================================================================
 
 /// Type of a header, either user or system.
-#[derive(Debug, Hash)]
+#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)]
 pub enum DeclareType {
     User,       // #include "file.h"
     System,     // #include <file.h>
 }
 
 /// Type representing an include declaration
-#[derive(Debug, Hash)]
+#[derive(Debug, Hash, Eq, PartialEq)]
 pub struct Declare {
     kind: DeclareType,
     path: PathBuf,      // Path in the declaration, not in the referenced file
+}
+
+impl Declare {
+    pub fn new(path: &str, kind: DeclareType) -> Self {
+        let path = PathBuf::from(path);
+        return Self { kind, path };
+    }
+
+    pub fn kind(&self) -> DeclareType {
+        return self.kind.clone();
+    }
+
+    pub fn path(&self) -> &PathBuf {
+        return &self.path;
+    }
 }

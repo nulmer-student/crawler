@@ -1,14 +1,14 @@
-use crate::miner::types::{File, FileType};
-use crate::miner::extract::find_files;
+use super::types::{Declare, DeclareType, File, FileType};
+use super::extract::find_files;
 
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::path::{Component, PathBuf};
 use std::fs;
-
-use super::types::Declare;
+use regex::Regex;
 
 type AbbrevTable = HashMap<PathBuf, Vec<File>>;
+type Edges = HashMap<File, HashMap<Declare, Vec<File>>>;
 
 /// Dependency graph between all source and header files in a repository.
 ///
@@ -23,8 +23,8 @@ pub struct DepGraph<'a> {
     // abbrev: AbbrevTable,
 
     // Graph structure
-    nodes: HashSet<File>,                   // Nodes are files
-    edges: HashMap<File, HashSet<File>>     // Edges are dependencies between files
+    nodes: HashSet<File>,   // Nodes are files
+    edges: Edges,           // Edges are dependencies between files
 }
 
 impl<'a> DepGraph<'a> {
@@ -76,23 +76,51 @@ impl<'a> DepGraph<'a> {
         }
 
         // For each file, add edges where there are dependencies
+        let mut edges: Edges = HashMap::new();
         for file in &nodes {
-            let decl = Self::parse_declare(file);
-            println!("{:#?}", decl);
+            for decl in Self::parse_declare(root_dir, file) {
+                // Add each possible file as an edge
+                if let Some(possibilities) = abbrev.get(decl.path()) {
+                    // Initialize the decl->posible table
+                    if !edges.contains_key(file) {
+                        edges.insert(file.clone(), HashMap::new());
+                    }
+
+                    if let Some(sub) = edges.get_mut(file) {
+                        sub.insert(decl, possibilities.to_vec());
+                    }
+                };
+            }
         }
 
         return DepGraph {
             root_dir,
             nodes,
-            edges: Default::default(),
+            edges,
         };
     }
 
-    fn parse_declare(file: &File) -> Vec<Declare> {
-        let mut acc: Vec<Declare> = vec![];
+    fn parse_declare(root: &'a PathBuf, file: &File) -> Vec<Declare> {
+        // Match `#include` declarations
+        let pattern = Regex::new("#include ([\"<])([^\">]+)([\">])").unwrap();
 
-        let contents = fs::read_to_string(file.path());
-        println!("{:#?}", contents);
+        // Intern each match
+        let mut acc: Vec<Declare> = vec![];
+        let contents = fs::read_to_string(root.join(file.path())).unwrap();
+
+        for (body, [first, path, _last]) in pattern.captures_iter(&contents).map(|c| c.extract::<3>()) {
+            match first {
+                "<" => {
+                    acc.push(Declare::new(path, DeclareType::System))
+                },
+                "\"" => {
+                    acc.push(Declare::new(path, DeclareType::User))
+                },
+                _ => {
+                    panic!("Invalid header: '{}'", body);
+                }
+            }
+        }
 
         return acc;
     }
