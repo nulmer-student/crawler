@@ -24,7 +24,7 @@ pub fn find_files(directory: &PathBuf, pattern: &str) -> Vec<File> {
     // Split lines
     let mut acc: Vec<File> = vec![];
     for line in out_str.lines() {
-        acc.push(File::relative(line, directory));
+        acc.push(File::new(PathBuf::from(line)));
     }
 
     return acc;

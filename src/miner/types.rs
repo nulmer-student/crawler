@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Components, PathBuf};
 
 // =============================================================================
 // File
@@ -35,7 +35,7 @@ impl File {
     }
 
     /// Create a new file realtive to DIRECTORY.
-    pub fn relative(string: &str, directory: &PathBuf) -> Self {
+    pub fn _relative(string: &str, directory: &PathBuf) -> Self {
         let path: PathBuf = PathBuf::from(string)
             .strip_prefix(directory)
             .unwrap()
@@ -43,22 +43,35 @@ impl File {
 
         return File::new(path);
     }
+
+    /// Return an iterator of the components of a file
+    pub fn components(&self) -> Components {
+        return self.path.components();
+    }
+
+    pub fn kind(&self) -> FileType {
+        return self.kind.clone();
+    }
+
+    pub fn path(&self) -> &PathBuf {
+        return &self.path;
+    }
 }
 
 // =============================================================================
-// Header
+// Include Declaration
 // =============================================================================
 
 /// Type of a header, either user or system.
 #[derive(Debug, Hash)]
-pub enum HeaderType {
+pub enum DeclareType {
     User,       // #include "file.h"
     System,     // #include <file.h>
 }
 
 /// Type representing an include declaration
 #[derive(Debug, Hash)]
-pub struct Include {
-    kind: HeaderType,
-    path: PathBuf,
+pub struct Declare {
+    kind: DeclareType,
+    path: PathBuf,      // Path in the declaration, not in the referenced file
 }

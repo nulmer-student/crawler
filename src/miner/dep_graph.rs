@@ -1,10 +1,14 @@
-use crate::miner::types::{File, Include};
+use crate::miner::types::{File, FileType};
 use crate::miner::extract::find_files;
 
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::ffi::OsStr;
+use std::path::{Component, PathBuf};
+use std::fs;
 
-type AbbrevTable<'a> = HashMap<Include, Vec<&'a File>>;
+use super::types::Declare;
+
+type AbbrevTable = HashMap<PathBuf, Vec<File>>;
 
 /// Dependency graph between all source and header files in a repository.
 ///
@@ -15,9 +19,8 @@ pub struct DepGraph<'a> {
     // Directory of the repository
     root_dir: &'a PathBuf,
 
-    // Map include declarations to candidate files
-    // FIXME: The "Include" type is wrong
-    abbrev: AbbrevTable<'a>,
+    // Map possible include paths to candidate files
+    // abbrev: AbbrevTable,
 
     // Graph structure
     nodes: HashSet<File>,                   // Nodes are files
@@ -36,22 +39,61 @@ impl<'a> DepGraph<'a> {
         for file in src {
             nodes.insert(file);
         }
-        for file in &headers {
-            nodes.insert(file.clone());
+        for file in headers {
+            nodes.insert(file);
         }
 
-        // Create the abbrev table
-        let abbrev = Self::build_abbrev(&headers);
+        // For each file, add the the possible declarations to the table
+        let mut abbrev: AbbrevTable = Default::default();
+        for file in &nodes {
+            // Only consider source files
+            match file.kind() {
+                FileType::Source => { continue; },
+                _ => {},
+            };
 
-        let edges = Default::default();
+            let mut acc: Vec<&OsStr> = vec![];
 
-        return DepGraph { root_dir, abbrev, nodes, edges };
+            // Reverse the components & accumulate, for example: "a/b/c.h"
+            // interns the following paths:
+            // - "c.h"
+            // - "b/c.h"
+            // - "a/b/c.h"
+            for c in file.components().rev() {
+                if let Component::Normal(comp) = c {
+                    acc.insert(0, comp);        // FIXME: O(n) insert
+                    let path: PathBuf = acc.iter().collect();
+                    match abbrev.get_mut(&path) {
+                        Some(v) => {
+                            v.push(file.clone());
+                        },
+                        None => {
+                            abbrev.insert(path, vec![file.clone()]);
+                        },
+                    };
+                }
+            }
+        }
+
+        // For each file, add edges where there are dependencies
+        for file in &nodes {
+            let decl = Self::parse_declare(file);
+            println!("{:#?}", decl);
+        }
+
+        return DepGraph {
+            root_dir,
+            nodes,
+            edges: Default::default(),
+        };
     }
 
-    /// Build the abbrev table
-    fn build_abbrev(files: &Vec<File>) -> AbbrevTable<'a> {
-        let mut table = AbbrevTable::new();
+    fn parse_declare(file: &File) -> Vec<Declare> {
+        let mut acc: Vec<Declare> = vec![];
 
-        return table;
+        let contents = fs::read_to_string(file.path());
+        println!("{:#?}", contents);
+
+        return acc;
     }
 }
