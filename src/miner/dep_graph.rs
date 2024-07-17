@@ -5,7 +5,12 @@ use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::path::{Component, PathBuf};
 use std::fs;
+use lazy_static::lazy_static;
 use regex::Regex;
+
+lazy_static! {
+    static ref INCLUDE_PATTERN: Regex = Regex::new("#include ([\"<])([^\">]+)([\">])").unwrap();
+}
 
 type AbbrevTable = HashMap<PathBuf, Vec<File>>;
 type Edges = HashMap<File, HashMap<Declare, Vec<File>>>;
@@ -102,7 +107,7 @@ impl<'a> DepGraph<'a> {
 
     fn parse_declare(root: &'a PathBuf, file: &File) -> Vec<Declare> {
         // Match `#include` declarations
-        let pattern = Regex::new("#include ([\"<])([^\">]+)([\">])").unwrap();
+        let pattern = &INCLUDE_PATTERN;
 
         // Intern each match
         let mut acc: Vec<Declare> = vec![];
@@ -123,5 +128,21 @@ impl<'a> DepGraph<'a> {
         }
 
         return acc;
+    }
+
+    /// Return all source files in the DG
+    pub fn source_files(&self) -> Vec<File> {
+        let mut acc = vec![];
+        for file in &self.nodes {
+            if let FileType::Source = file.kind() {
+                acc.push(file.clone());
+            };
+        }
+        return acc;
+    }
+
+    // Return the root directory
+    pub fn root(&self) -> &PathBuf {
+        return &self.root_dir;
     }
 }
