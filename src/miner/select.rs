@@ -2,14 +2,15 @@ use std::collections::{HashMap, HashSet};
 
 use crate::config::Config;
 use super::dep_graph::DepGraph;
-use super::types::{Declare, File};
+use super::types::File;
 
 /// Represents an action while searching the dependency graph.
 #[derive(Debug, Clone)]
 enum Action {
     Start,                  // Initial node
-    Foreward(File, File),   // Walk from file A to B
-    Backward(File, File),   // Walk back to file A from B
+    Foreward(File, File),   // A -> B
+    Backward(File, File),   // B -> A
+    Many(File, Vec<File>),  // A -> {B, C, D, ...}
 }
 
 /// Try all possible header configurations
@@ -20,12 +21,12 @@ pub struct Selector<'a> {
     // Graph traversal
     dg: &'a DepGraph<'a>,
     stack: Vec<Action>,             // Current path through the dep graph
-    seen: HashSet<Declare>,         // Declarations that we have tried
-    parents: HashMap<File, File>,   // Stores traversal parent
+    seen: HashSet<File>,            // Declarations that we have tried
+    parents: HashMap<File, File>,   // Stores tree parent
 
     // Attempts
     tries: usize,   // Number of attempts so far
-    once: bool,
+    once: bool,     // True if we have tried at least once
 }
 
 impl<'a> Selector<'a> {
@@ -58,7 +59,6 @@ impl<'a> Selector<'a> {
             // Get the headers
             let headers = self.get_headers();
             self.tries -= 1;
-            println!("{:#?}", headers);
             return Some(headers);
         }
 
@@ -68,7 +68,10 @@ impl<'a> Selector<'a> {
 
     /// Explore for the next choice of headers.
     fn explore(&mut self) -> bool {
-        // println!("{:#?}", self.stack);
+        // println!("===== Explore =====");
+        // println!("Stack: {:#?}", self.stack);
+        // println!("Parents: {:#?}", self.parents);
+        // println!("Seen: {:#?}", self.seen);
 
         // Get the action on the top of the stack
         let Some(action) = self.stack.last() else {
@@ -81,6 +84,9 @@ impl<'a> Selector<'a> {
             Action::Start => self.file.clone(),
             Action::Foreward(_src, dest) => dest.clone(),
             Action::Backward(_src, dest) => dest.clone(),
+            Action::Many(_src, possible) => {
+                possible.last().unwrap().clone()
+            },
         };
 
         // Find the dependencies of the current file
@@ -88,25 +94,44 @@ impl<'a> Selector<'a> {
         match self.dg.deps(&file) {
             // Explore the dependencies
             Some(deps) => {
-                for (decl, possible) in deps {
+                for (_decl, possible) in deps {
+                    // Get the child file (always at least one)
+                    let child_file = possible.last().unwrap();
+                    // println!("Child: {:?}", child_file);
+
                     // Don't explore children we have already seen
-                    if self.seen.contains(decl) {
+                    if self.seen.contains(child_file) {
                         continue;
                     }
 
                     // Mark this child as visited
                     any_children = true;
-                    self.seen.insert(decl.clone());
-
-                    // Move to the choice
-                    let child_file = possible.last().unwrap();
-                    println!("{:#?}", child_file);
-                    self.stack.push(
-                        Action::Foreward(file.clone(), child_file.clone())
-                    );
+                    self.seen.insert(child_file.clone());
 
                     // Store the parent so we can backtrack
                     self.parents.insert(child_file.clone(), file.clone());
+
+
+                    // Move to the choice
+                    match possible.len() {
+                        0 => { unreachable!() },
+                        // If there is only one possibility, insert a Foreward
+                        1 => {
+                            self.stack.push(
+                                Action::Foreward(file.clone(), child_file.clone())
+                            );
+
+                        },
+                        // Otherwise, insert a Many
+                        _ => {
+                            self.stack.push(
+                                Action::Many(file.clone(), possible.to_vec())
+                            );
+                        }
+                    }
+
+                    // Don't explore any other children
+                    break;
                 }
             },
             None => {},
@@ -136,7 +161,59 @@ impl<'a> Selector<'a> {
 
     /// Backtracks, & returns true if there are more choices, & false otherwise.
     fn backtrack(&mut self) -> bool {
-        return false;
+        loop {
+            // println!("===== Backtrack =====");
+            // println!("Stack: {:#?}", self.stack);
+            // println!("Parents: {:#?}", self.parents);
+            // println!("Seen: {:#?}", self.seen);
+
+            // Get the action on the top of the stack
+            let Some(action) = self.stack.last() else {
+                return false;
+            };
+            let action = action.clone();
+
+
+            match action {
+                // If we backtrack to the start, there are no more choices
+                Action::Start => {
+                    return false;
+                },
+
+                // If we are at a choice point, go to the next choice
+                Action::Many(src, possible) => {
+                    if let Some((_last, rest)) = possible.split_last() {
+                        self.stack.pop();
+                        if rest.len() > 0 {
+                            // Remove the last possibility
+                            // self.seen.remove(&dest);
+                            self.stack.push(Action::Many(
+                                src.clone(), rest.to_vec())
+                            );
+
+                            // Fix the parent
+                            self.parents.insert(
+                                rest.last().unwrap().clone(),
+                                src.clone()
+                            );
+
+                            // Return that there are more possibilities
+                            return true;
+                        }
+                    }
+                },
+
+                // Otherwise, remove the element
+                Action::Foreward(_src, dest) => {
+                    self.seen.remove(&dest);
+                    self.stack.pop();
+                },
+                Action::Backward(_src, dest) => {
+                    // self.seen.remove(&dest);
+                    self.stack.pop();
+                },
+            }
+        }
     }
 
     /// Return the headers from a graph traversal
@@ -146,6 +223,9 @@ impl<'a> Selector<'a> {
             match action {
                 Action::Foreward(_src, dest) => {
                     acc.push(dest.clone());
+                }
+                Action::Many(_src, possible) => {
+                    acc.push(possible.last().unwrap().clone());
                 }
                 _ => { },
             }

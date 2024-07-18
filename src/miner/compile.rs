@@ -81,7 +81,7 @@ impl<'a> Compiler<'a> {
 
     /// Attempt to compile a single file
     fn try_compile(&self, headers: Vec<File>) -> CompileResult {
-        println!("Compile with: '{:?}'", headers);
+        println!("Compile '{:?}' with: '{:?}'", self.file, headers);
 
         // // Make the headers relative to the file we are compiling
         // let header_str = "";
