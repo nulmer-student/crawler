@@ -10,6 +10,7 @@ pub struct Config {
 pub struct Miner {
     pub compile: String,
     pub preprocess: Option<String>,
+    pub tries: Option<usize>,
 }
 
 pub fn read_config(path: PathBuf) -> Config {

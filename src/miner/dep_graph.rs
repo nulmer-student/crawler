@@ -13,7 +13,9 @@ lazy_static! {
 }
 
 type AbbrevTable = HashMap<PathBuf, Vec<File>>;
-type Edges = HashMap<File, HashMap<Declare, Vec<File>>>;
+
+pub type Deps = HashMap<Declare, Vec<File>>;
+type Edges = HashMap<File, Deps>;
 
 /// Dependency graph between all source and header files in a repository.
 ///
@@ -91,6 +93,7 @@ impl<'a> DepGraph<'a> {
                         edges.insert(file.clone(), HashMap::new());
                     }
 
+                    // Insert the header file
                     if let Some(sub) = edges.get_mut(file) {
                         sub.insert(decl, possibilities.to_vec());
                     }
@@ -144,5 +147,9 @@ impl<'a> DepGraph<'a> {
     // Return the root directory
     pub fn root(&self) -> &PathBuf {
         return &self.root_dir;
+    }
+
+    pub fn deps(&self, file: &File) -> Option<&Deps> {
+        return self.edges.get(file);
     }
 }

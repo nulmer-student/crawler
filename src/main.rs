@@ -37,7 +37,6 @@ fn main() {
         .expect("required")
         .to_path_buf();
     let config = config::read_config(config_path);
-    println!("{:#?}", config);
 
     match matches.subcommand() {
         Some(("mine", sub)) => {

@@ -70,7 +70,7 @@ pub enum DeclareType {
 }
 
 /// Type representing an include declaration
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub struct Declare {
     kind: DeclareType,
     path: PathBuf,      // Path in the declaration, not in the referenced file

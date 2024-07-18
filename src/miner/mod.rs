@@ -1,6 +1,7 @@
 mod compile;
 mod dep_graph;
 mod extract;
+mod select;
 mod types;
 
 use compile::Compiler;
