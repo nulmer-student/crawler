@@ -7,9 +7,11 @@ mod types;
 use compile::Compiler;
 use dep_graph::DepGraph;
 use crate::config::Config;
-use crate::interface::{self, Interface};
+use crate::interface;
 
 use std::path::PathBuf;
+use std::sync::Arc;
+use rayon::prelude::*;
 
 /// Build a dependency graph of the source an header files in DIRECTORY.
 ///
@@ -21,8 +23,16 @@ pub fn mine(directory: &PathBuf, config: &Config) {
     // Load the interface
     let interface = interface::get_interface(&config.interface);
 
-    for file in dg.source_files() {
-        let mut compiler = Compiler::new(file, &dg, &config, &interface);
-        compiler.run();
-    }
+    let files = dg.source_files().to_vec();
+
+    let _ = files.par_iter()
+         .for_each(|file| {
+              let mut compiler = Compiler::new(
+                  file.clone(),
+                  &dg,
+                  &config,
+                  interface.clone()
+              );
+              compiler.run();
+         });
 }

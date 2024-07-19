@@ -2,6 +2,7 @@ mod find_vector_si;
 
 use std::path::PathBuf;
 use std::fs;
+use std::sync::Arc;
 
 pub type PreprocessResult = Result<String, ()>;
 pub type CompileResult    = Result<String, ()>;
@@ -32,9 +33,11 @@ pub trait Interface {
 }
 
 
-pub fn get_interface(name: &str) -> Box<dyn Interface> {
+pub fn get_interface(name: &str) -> Arc<dyn Interface + Send + Sync> {
     match name {
-        "si" => { Box::new(find_vector_si::FindVectorSI {}) },
+        "si" => {
+            Arc::new(find_vector_si::FindVectorSI {}) as Arc<dyn Interface + Send + Sync>
+        },
         _ => { panic!("No interface with name: '{}'", name) },
     }
 }

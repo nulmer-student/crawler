@@ -5,12 +5,13 @@ use crate::config::Config;
 use crate::interface::{Interface, CompileResult};
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 /// This struct contains the functionality to compile a single source file.
 pub struct Compiler<'a> {
     // Configuration
     config: &'a Config,
-    interface: &'a Box<dyn Interface>,
+    interface: Arc<dyn Interface + Send>,
 
     // File we are compiling
     root_dir: &'a PathBuf,  // Directory of the repository
@@ -27,7 +28,7 @@ impl<'a> Compiler<'a> {
         file: File,
         dg: &'a DepGraph,
         config: &'a Config,
-        interface: &'a Box<dyn Interface>
+        interface: Arc<dyn Interface + Send>
     ) -> Self {
         let root_dir = dg.root();
 
