@@ -30,6 +30,16 @@ fn cli() -> Command {
                 .arg(arg!(path: <PATH>)
                      .value_parser(clap::value_parser!(PathBuf)))
         )
+        // Start the crawler
+        .subcommand_required(true)
+        .arg_required_else_help(true)
+        .subcommand(
+            Command::new("crawl")
+                .about("Mine a given repository")
+                .arg_required_else_help(true)
+                .arg(arg!(path: <PATH>)
+                     .value_parser(clap::value_parser!(PathBuf)))
+        )
 }
 
 fn get_path(args: &ArgMatches, name: &str) -> PathBuf {

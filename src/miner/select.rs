@@ -36,10 +36,7 @@ impl<'a> Selector<'a> {
         let seen    = Default::default();
         let parents = Default::default();
 
-        let tries = match config.miner.tries {
-            Some(n) => n,
-            None => 10,
-        };
+        let tries = config.miner.tries;
 
         return Self { file, dg, stack, seen, parents, tries, once: false };
     }

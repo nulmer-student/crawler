@@ -4,9 +4,7 @@ use super::types::File;
 use crate::config::Config;
 use crate::interface::{Interface, CompileResult};
 
-use std::io::{self, Write};
 use std::path::PathBuf;
-use std::process::{Command, Output, Stdio};
 
 /// This struct contains the functionality to compile a single source file.
 pub struct Compiler<'a> {
@@ -45,14 +43,13 @@ impl<'a> Compiler<'a> {
         return Self { config, interface, root_dir, file, source, selector };
     }
 
+    /// Try possible header combinations.
     pub fn run(&mut self) {
         loop {
             // Get the next possible header combination
             let Some(headers) = self.selector.step() else {
                 break;
             };
-
-            println!("Compile '{:?}' with: '{:?}'", self.file, headers);
 
             // Try to compile
             match self.try_compile(headers) {
@@ -67,7 +64,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    /// Attempt to compile a single file
+    /// Attempt to compile a single file.
     fn try_compile(&self, headers: Vec<File>) -> CompileResult {
         println!("Compile '{:?}' with: '{:?}'", self.file, headers);
 
