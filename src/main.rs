@@ -3,6 +3,7 @@
 mod config;
 mod interface;
 mod miner;
+mod runner;
 
 use clap::{arg, Command, ArgMatches};
 use std::path::PathBuf;
@@ -14,11 +15,6 @@ fn cli() -> Command {
         .arg_required_else_help(true)
         .arg(arg!(config: <CONFIG>)
              .value_parser(clap::value_parser!(PathBuf))
-        )
-        // Interface
-        .arg_required_else_help(true)
-        .arg(arg!(interface: <INTERFACE>)
-             .value_parser(clap::value_parser!(String))
         )
         // Mine a single repository
         .subcommand_required(true)
@@ -36,9 +32,6 @@ fn cli() -> Command {
         .subcommand(
             Command::new("crawl")
                 .about("Mine a given repository")
-                .arg_required_else_help(true)
-                .arg(arg!(path: <PATH>)
-                     .value_parser(clap::value_parser!(PathBuf)))
         )
 }
 
@@ -58,16 +51,13 @@ fn main() {
         .to_path_buf();
     let config = config::read_config(config_path);
 
-    // Load the interface
-    let name = matches.get_one::<String>("interface")
-        .expect("required")
-        .to_string();
-    let interface = interface::get_interface(&name);
-
     match matches.subcommand() {
         Some(("mine", sub)) => {
             let path = get_path(sub, "path");
-            miner::mine(&path, &config, &interface);
+            miner::mine(&path, &config);
+        },
+        Some(("crawl", sub)) => {
+            runner::crawl(&config);
         },
         _ => unreachable!(),
     }
