@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::config::Config;
 use super::dep_graph::DepGraph;
-use super::types::File;
+use super::types::{Declare, File};
 
 /// Represents an action while searching the dependency graph.
 #[derive(Debug, Clone)]
@@ -33,8 +33,8 @@ impl<'a> Selector<'a> {
     /// Create a new selector.
     pub fn new(file: File, dg: &'a DepGraph, config: &'a Config) -> Self {
         let stack = vec![Action::Start];
-        let seen = HashSet::new();
-        let parents = HashMap::new();
+        let seen    = Default::default();
+        let parents = Default::default();
 
         let tries = match config.miner.tries {
             Some(n) => n,
@@ -95,43 +95,13 @@ impl<'a> Selector<'a> {
             // Explore the dependencies
             Some(deps) => {
                 for (_decl, possible) in deps {
-                    // Get the child file (always at least one)
-                    let child_file = possible.last().unwrap();
-                    // println!("Child: {:?}", child_file);
-
-                    // Don't explore children we have already seen
-                    if self.seen.contains(child_file) {
-                        continue;
-                    }
-
-                    // Mark this child as visited
-                    any_children = true;
-                    self.seen.insert(child_file.clone());
-
-                    // Store the parent so we can backtrack
-                    self.parents.insert(child_file.clone(), file.clone());
-
-
-                    // Move to the choice
-                    match possible.len() {
-                        0 => { unreachable!() },
-                        // If there is only one possibility, insert a Foreward
-                        1 => {
-                            self.stack.push(
-                                Action::Foreward(file.clone(), child_file.clone())
-                            );
-
-                        },
-                        // Otherwise, insert a Many
-                        _ => {
-                            self.stack.push(
-                                Action::Many(file.clone(), possible.to_vec())
-                            );
-                        }
-                    }
+                    let found = self.visit(&file, possible);
 
                     // Don't explore any other children
-                    break;
+                    if found {
+                        any_children = true;
+                        break;
+                    }
                 }
             },
             None => {},
@@ -154,6 +124,41 @@ impl<'a> Selector<'a> {
             // Otherwise, go backward
             let parent = self.parents.get(&file).unwrap();
             self.stack.push(Action::Backward(file, parent.clone()));
+        }
+
+        return true;
+    }
+
+    fn visit(&mut self, file: &File, possible: &[File]) -> bool {
+        let child_file = possible.last().unwrap();
+
+        // If we have already seen this child, don't visit
+        if self.seen.contains(child_file) {
+            return false;
+        }
+
+        // Mark this child as visited
+        self.seen.insert(child_file.clone());
+
+        // Store the parent so we can backtrack
+        self.parents.insert(child_file.clone(), file.clone());
+
+        // Move to the choice
+        match possible.len() {
+            0 => { unreachable!() },
+            // If there is only one possibility, insert a Foreward
+            1 => {
+                self.stack.push(
+                    Action::Foreward(file.clone(), child_file.clone())
+                );
+
+            },
+            // Otherwise, insert a Many
+            _ => {
+                self.stack.push(
+                    Action::Many(file.clone(), possible.to_vec())
+                );
+            }
         }
 
         return true;
@@ -182,11 +187,11 @@ impl<'a> Selector<'a> {
 
                 // If we are at a choice point, go to the next choice
                 Action::Many(src, possible) => {
-                    if let Some((_last, rest)) = possible.split_last() {
+                    if let Some((last, rest)) = possible.split_last() {
                         self.stack.pop();
                         if rest.len() > 0 {
                             // Remove the last possibility
-                            // self.seen.remove(&dest);
+                            // self.seen.remove(&last);
                             self.stack.push(Action::Many(
                                 src.clone(), rest.to_vec())
                             );
@@ -208,8 +213,8 @@ impl<'a> Selector<'a> {
                     self.seen.remove(&dest);
                     self.stack.pop();
                 },
-                Action::Backward(_src, dest) => {
-                    // self.seen.remove(&dest);
+                Action::Backward(_src, _dest) => {
+                    // self.seen.remove(&_dest);
                     self.stack.pop();
                 },
             }
