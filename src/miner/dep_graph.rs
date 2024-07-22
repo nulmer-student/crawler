@@ -114,6 +114,7 @@ impl<'a> DepGraph<'a> {
 
         // Intern each match
         let mut acc: Vec<Declare> = vec![];
+        println!("{:?}", file);
         let contents = fs::read_to_string(root.join(file.path())).unwrap();
 
         for (body, [first, path, _last]) in pattern.captures_iter(&contents).map(|c| c.extract::<3>()) {

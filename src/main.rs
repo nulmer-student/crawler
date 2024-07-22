@@ -21,7 +21,7 @@ fn cli() -> Command {
         .arg_required_else_help(true)
         .subcommand(
             Command::new("mine")
-                .about("Mine a given repository")
+                .about("Only mine a given repository")
                 .arg_required_else_help(true)
                 .arg(arg!(path: <PATH>)
                      .value_parser(clap::value_parser!(PathBuf)))
@@ -31,7 +31,14 @@ fn cli() -> Command {
         .arg_required_else_help(true)
         .subcommand(
             Command::new("crawl")
-                .about("Mine a given repository")
+                .about("Mine all matching repositories")
+        )
+        // Search for repositories
+        .subcommand_required(true)
+        .arg_required_else_help(true)
+        .subcommand(
+            Command::new("search")
+                .about("Only search for repositories")
         )
 }
 
@@ -56,8 +63,11 @@ fn main() {
             let path = get_path(sub, "path");
             miner::mine(&path, &config);
         },
-        Some(("crawl", sub)) => {
+        Some(("crawl", _sub)) => {
             runner::crawl(&config);
+        },
+        Some(("search", _sub)) => {
+            runner::search(&config);
         },
         _ => unreachable!(),
     }
