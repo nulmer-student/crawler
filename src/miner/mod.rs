@@ -44,5 +44,11 @@ pub fn mine(directory: &PathBuf, config: Config) {
 
 /// Mine a single repository, using a dedicated thread pool.
 pub fn mine_one(directory: PathBuf, config: Config) {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(config.miner.threads)
+        .thread_name(|i| format!("mine-{}", i))
+        .build_global()
+        .expect("Failed to create miner thread pool");
+
     mine(&directory, config);
 }
