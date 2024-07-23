@@ -9,7 +9,7 @@ use config as crawler_config;
 
 use clap::{arg, Command, ArgMatches};
 use std::path::PathBuf;
-use log::{self, info};
+use log;
 use log4rs::config::{Appender, Config, Root};
 use log4rs::append::{console::{ConsoleAppender, Target}, file::FileAppender};
 use log4rs::encode::pattern::PatternEncoder;

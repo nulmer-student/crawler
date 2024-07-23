@@ -11,14 +11,12 @@ use crate::interface;
 
 use std::path::PathBuf;
 use rayon::prelude::*;
-use log::info;
 
 /// Build a dependency graph of the source an header files in DIRECTORY.
 ///
 /// Currently, only `*.c` and `*.h` files are supported.
 pub fn mine(directory: &PathBuf, config: Config) {
     // Build the dependency graph
-    info!("Building DP graph");
     let dg = DepGraph::new(directory);
 
     // Load the interface

@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::config::Config;
 use super::dep_graph::DepGraph;
-use super::types::{Declare, File};
+use super::types::File;
 
 /// Represents an action while searching the dependency graph.
 #[derive(Debug, Clone)]
@@ -184,7 +184,7 @@ impl<'a> Selector<'a> {
 
                 // If we are at a choice point, go to the next choice
                 Action::Many(src, possible) => {
-                    if let Some((last, rest)) = possible.split_last() {
+                    if let Some((_last, rest)) = possible.split_last() {
                         self.stack.pop();
                         if rest.len() > 0 {
                             // Remove the last possibility

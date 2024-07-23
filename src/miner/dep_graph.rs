@@ -38,6 +38,8 @@ pub struct DepGraph<'a> {
 impl<'a> DepGraph<'a> {
     /// Create a new dependency graph rooted at ROOT_DIR.
     pub fn new(root_dir: &'a PathBuf) -> Self {
+        info!("Building DP graph");
+
         // Find the source files in the repository
         let src     = find_files(root_dir, "*.c");
         let headers = find_files(root_dir, "*.h");

@@ -6,7 +6,7 @@ use crate::interface::{CompileInput, CompileResult, Interface, InternInput, Matc
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use log::{info, error, debug};
+use log::{error, debug};
 
 /// This struct contains the functionality to compile a single source file.
 pub struct Compiler<'a> {

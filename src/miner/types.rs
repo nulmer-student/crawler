@@ -82,7 +82,7 @@ impl Declare {
         return Self { kind, path };
     }
 
-    pub fn kind(&self) -> DeclareType {
+    pub fn _kind(&self) -> DeclareType {
         return self.kind.clone();
     }
 
