@@ -4,6 +4,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::config::Config;
 use super::db::Database;
+use super::git::RepoData;
 
 use sqlx::{self, Row, Any};
 use reqwest;
@@ -21,30 +22,6 @@ static USER_AGENT: &str = concat!(
 
 static PAGE_SIZE: usize = 100;
 static INITIAL_MAX: usize = 10_000_000;
-
-#[derive(Debug)]
-struct RepoData {
-    pub id: i64,        // The Any db backend requires signed integers
-    pub name: String,
-    pub url: String,
-    pub stars: i64,
-}
-
-impl RepoData {
-    fn new(data: &Value) -> Result<Self, ()> {
-        let id    = &data["id"].as_i64().ok_or(())?;
-        let name  = &data["full_name"].as_str().ok_or(())?;
-        let url   = &data["clone_url"].as_str().ok_or(())?;
-        let stars = &data["stargazers_count"].as_i64().ok_or(())?;
-
-        return Ok(Self {
-            id: *id,
-            name: name.to_string(),
-            url: url.to_string(),
-            stars: *stars,
-        });
-    }
-}
 
 pub struct Search<'a> {
     config: &'a Config,
@@ -122,7 +99,7 @@ impl<'a> Search<'a> {
         let mut acc = vec![];
         if let Value::Array(items) = &json["items"] {
             for item in items {
-                let repo = match RepoData::new(item) {
+                let repo = match RepoData::from_json(item) {
                     Ok(r) => r,
                     Err(_) => panic!("Failed to parse repo JSON"),
                 };
@@ -154,8 +131,8 @@ impl<'a> Search<'a> {
     async fn add_repo(&self, repo: RepoData) -> Result<(), sqlx::Error> {
         sqlx::query::<Any>("insert into repos values (?, ?, ?, ?)")
             .bind(repo.id)
-            .bind(repo.name)
-            .bind(repo.url)
+            .bind(repo.name.clone())
+            .bind(repo.url.clone())
             .bind(repo.stars)
             .execute(&self.db.pool)
             .await?;

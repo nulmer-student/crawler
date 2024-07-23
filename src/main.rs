@@ -58,7 +58,7 @@ fn get_path(args: &ArgMatches, name: &str) -> PathBuf {
 /// Setup application logging
 fn setup_logging(config: &crawler_config::Config) -> log4rs::Handle {
     // Log entry pattern
-    let pattern = Box::new(PatternEncoder::new("{d(%Y-%m-%d %H:%M:%S)} {h({l}): <5} {i: <5} {t: <25} {L: >4} - {m}{n}"));
+    let pattern = Box::new(PatternEncoder::new("{d(%Y-%m-%d %H:%M:%S)} {h({l}): <5} {T: <8} {t: <25} {L: >4} - {m}{n}"));
 
     // Log to stderr
     let stderr = ConsoleAppender::builder()

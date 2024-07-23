@@ -1,15 +1,18 @@
 mod db;
+mod git;
 mod search;
+mod run;
 
 use crate::config::Config;
 use search::Search;
+use run::run_all;
 
 pub fn crawl(config: &Config) {
     // Search for matching repositories
     search(config);
 
     // Mine each repository
-    // TODO
+    run_all(config);
 }
 
 pub fn search(config: &Config) {
