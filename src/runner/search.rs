@@ -11,6 +11,7 @@ use reqwest::blocking::Client;
 use reqwest::header;
 use serde_json;
 use serde_json::value::Value;
+use log::{info, error};
 
 static USER_AGENT: &str = concat!(
     env!("CARGO_PKG_NAME"),
@@ -86,10 +87,10 @@ impl<'a> Search<'a> {
         let mut page = 1;
 
         let min = self.config.runner.min_stars;
-        let mut max = INITIAL_MAX;
+        let mut max = self.db.rt.block_on(self.min_stars());
 
         loop {
-            println!("Found: '{}'", found);
+            info!("Found: '{}'", found);
             // Get the next page of results
             let (json, next_page) = self.get_page(min, max, page);
 
@@ -136,11 +137,12 @@ impl<'a> Search<'a> {
         let mut count = 0;  // # of repos we added
 
         for repo in repos {
-            println!("Adding repo: {:?}", repo);
+            info!("Adding repo: {:?} {:?}", repo.name, repo.id);
             match self.db.rt.block_on(self.add_repo(repo)) {
                 Ok(_) => { count += 1 },
+                // FIXME: Only ignore duplicate entries
                 Err(e) => {
-                    println!("Error inserting repository: '{}'", e);
+                    error!("{}", e);
                 }
             }
         }
@@ -165,7 +167,7 @@ impl<'a> Search<'a> {
     fn get_page(&self, min: usize, max: usize, page_no: usize) -> (Value, bool) {
         // Get the next page
         let query = self.query(min, max, page_no);
-        println!("{:#?}", query);
+        info!("{:#?}", query);
         let result = self.client.get(query)
                                 .send()
                                 .unwrap();
@@ -205,7 +207,7 @@ impl<'a> Search<'a> {
 
         // Sleep if needed
         if time != 0.0 {
-            println!("Sleeping for {}s", time);
+            info!("Sleeping for {} seconds", time);
             thread::sleep(Duration::from_secs_f64(time));
         }
     }

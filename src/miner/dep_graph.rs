@@ -7,6 +7,7 @@ use std::path::{Component, PathBuf};
 use std::fs;
 use lazy_static::lazy_static;
 use regex::Regex;
+use log::info;
 
 lazy_static! {
     static ref INCLUDE_PATTERN: Regex = Regex::new("#include ([\"<])([^\">]+)([\">])").unwrap();
@@ -114,7 +115,7 @@ impl<'a> DepGraph<'a> {
 
         // Intern each match
         let mut acc: Vec<Declare> = vec![];
-        println!("{:?}", file);
+        info!("{:?}", file);
         let contents = fs::read_to_string(root.join(file.path())).unwrap();
 
         for (body, [first, path, _last]) in pattern.captures_iter(&contents).map(|c| c.extract::<3>()) {

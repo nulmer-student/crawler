@@ -6,6 +6,7 @@ use crate::interface::{Interface, CompileResult};
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use log::info;
 
 /// This struct contains the functionality to compile a single source file.
 pub struct Compiler<'a> {
@@ -55,7 +56,7 @@ impl<'a> Compiler<'a> {
             // Try to compile
             match self.try_compile(headers) {
                 Ok(s) => {
-                    println!("{:#?}", s);
+                    info!("{:#?}", s);
                     break;
                 },
                 Err(_) => {
@@ -67,7 +68,7 @@ impl<'a> Compiler<'a> {
 
     /// Attempt to compile a single file.
     fn try_compile(&self, headers: Vec<File>) -> CompileResult {
-        println!("Compile '{:?}' with: '{:?}'", self.file, headers);
+        info!("Compile '{:?}'", self.file);
 
         let headers: Vec<_> = headers
             .iter()

@@ -13,6 +13,7 @@ lazy_static! {
     };
 }
 
+/// Top level configuration.
 #[derive(Debug, Deserialize)]
 pub struct Config {
     pub interface: String,
@@ -21,20 +22,24 @@ pub struct Config {
     pub database: Database,
 }
 
+/// Configuration for the miner.
 #[derive(Debug, Deserialize)]
 pub struct Miner {
     pub threads: usize,
     pub tries: usize,
 }
 
+/// Configuration for the runner.
 #[derive(Debug, Deserialize)]
 pub struct Runner {
     pub threads: usize,
     pub min_stars: usize,
     pub languages: HashSet<String>,
     pub github_api_key: String,
+    pub log_dir: PathBuf,
 }
 
+/// Configuration for the database.
 #[derive(Debug, Deserialize)]
 pub struct Database {
     pub user: String,

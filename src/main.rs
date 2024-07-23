@@ -5,8 +5,15 @@ mod interface;
 mod miner;
 mod runner;
 
+use config as crawler_config;
+
 use clap::{arg, Command, ArgMatches};
 use std::path::PathBuf;
+use log::{self, info};
+use log4rs::config::{Appender, Config, Root};
+use log4rs::append::{console::{ConsoleAppender, Target}, file::FileAppender};
+use log4rs::encode::pattern::PatternEncoder;
+use log4rs;
 
 fn cli() -> Command {
     Command::new("crawler")
@@ -48,6 +55,41 @@ fn get_path(args: &ArgMatches, name: &str) -> PathBuf {
         .to_path_buf()
 }
 
+/// Setup application logging
+fn setup_logging(config: &crawler_config::Config) -> log4rs::Handle {
+    // Log entry pattern
+    let pattern = Box::new(PatternEncoder::new("{d(%Y-%m-%d %H:%M:%S)} {h({l}): <5} {i: <5} {t: <25} {L: >4} - {m}{n}"));
+
+    // Log to stderr
+    let stderr = ConsoleAppender::builder()
+        .target(Target::Stderr)
+        .encoder(pattern.clone())
+        .build();
+
+
+    // Log to a file
+    let path = config.runner.log_dir.join("main.log");
+    let logfile = FileAppender::builder()
+        .encoder(pattern.clone())
+        .build(path)
+        .unwrap();
+
+    // Configure
+    let log_conf = Config::builder()
+        .appender(Appender::builder().build("logfile", Box::new(logfile)))
+        .appender(Appender::builder().build("stderr", Box::new(stderr)))
+        .build(
+            Root::builder()
+                .appender("logfile")
+                .appender("stderr")
+                .build(log::LevelFilter::Info),
+        )
+        .unwrap();
+
+    return log4rs::init_config(log_conf)
+        .expect("failed to initialize logger");
+}
+
 fn main() {
     // Parse arguments
     let matches = cli().get_matches();
@@ -56,7 +98,10 @@ fn main() {
     let config_path = matches.get_one::<PathBuf>("config")
         .expect("required")
         .to_path_buf();
-    let config = config::read_config(config_path);
+    let config = crawler_config::read_config(config_path);
+
+    // Setup logging
+    let _handle = setup_logging(&config);
 
     match matches.subcommand() {
         Some(("mine", sub)) => {
