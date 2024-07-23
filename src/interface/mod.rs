@@ -3,6 +3,7 @@ mod find_vector_si;
 use std::path::PathBuf;
 use std::fs;
 use std::sync::Arc;
+use log::error;
 
 pub type PreprocessResult = Result<String, ()>;
 pub type CompileResult    = Result<String, ()>;
@@ -14,7 +15,10 @@ pub trait Interface {
     fn preprocess(&self, _root: &PathBuf, file: &PathBuf) -> PreprocessResult {
         match fs::read_to_string(file) {
             Ok(s) => Ok(s),
-            Err(_) => Err(()),
+            Err(e) => {
+                error!("Failed to read file: {:?}", e);
+                Err(())
+            },
         }
     }
 

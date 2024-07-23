@@ -14,7 +14,7 @@ lazy_static! {
 }
 
 /// Top level configuration.
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Config {
     pub interface: String,
     pub miner: Miner,
@@ -23,14 +23,14 @@ pub struct Config {
 }
 
 /// Configuration for the miner.
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Miner {
     pub threads: usize,
     pub tries: usize,
 }
 
 /// Configuration for the runner.
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Runner {
     pub threads: usize,
     pub min_stars: usize,
@@ -41,7 +41,7 @@ pub struct Runner {
 }
 
 /// Configuration for the database.
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Database {
     pub user: String,
     pub password: String,

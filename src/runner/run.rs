@@ -1,5 +1,3 @@
-use std::panic;
-
 use crate::config::Config;
 use crate::miner::mine;
 use super::db;
@@ -7,9 +5,9 @@ use super::git::RepoData;
 
 use rayon::iter::IntoParallelRefIterator;
 use rayon::{current_thread_index, prelude::*, ThreadPool};
-use sqlx::{self, Row};
-use sqlx::any::AnyRow;
-use log::{info, error};
+use sqlx;
+use log::{info, debug};
+use crossbeam::sync::WaitGroup;
 
 // =============================================================================
 // Top-Level Runner
@@ -45,11 +43,9 @@ pub fn run_all(config: &Config) {
     // Mine all repos
     run_pool.install(|| {
         let _ = repos.par_iter().for_each(|repo| {
-            info!("Before");
             let pool = &miner_pools[current_thread_index().unwrap()];
             let mut runner = Runner::new(config, pool, repo.clone());
             runner.run();
-            info!("After");
         });
     })
 }
@@ -92,15 +88,29 @@ impl<'a> Runner<'a> {
         // Clone the repository
         let _ = self.repo.git_clone(&self.config.runner.tmp_dir);
 
-        // Run the miner
-        let dir = (&self.repo.dir).clone().unwrap(); // Dir is cloned
-        let result = mine(&dir, self.config, self.pool);
+        // If we don't have the WaitGroup, the current thread continues on and
+        // deletes the repo before we have mined it.
+        let wg = WaitGroup::new();
 
-        // if result.is_err() {
-        //     error!("Failed mining: '{}'", self.repo.name);
-        // }
+        // Run the miner
+        if let Some(dir) = (&self.repo.dir).clone() {
+            let config = self.config.clone();
+            let wg = wg.clone();
+            self.pool.spawn(move || {
+                mine(&dir, config);
+                drop(wg);
+            });
+        }
+        wg.wait();
 
         // Set this repo as mined
         info!("Finished mining: '{}'", self.repo.name);
+        // TODO
+    }
+}
+
+impl Drop for Runner<'_> {
+    fn drop(&mut self) {
+        debug!("Drop runner");
     }
 }

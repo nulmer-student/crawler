@@ -12,11 +12,12 @@ use crate::interface;
 use std::path::PathBuf;
 use rayon::{prelude::*, ThreadPool};
 use log::info;
+use crossbeam::sync::WaitGroup;
 
 /// Build a dependency graph of the source an header files in DIRECTORY.
 ///
 /// Currently, only `*.c` and `*.h` files are supported.
-pub fn mine(directory: &PathBuf, config: &Config, pool: &ThreadPool) {
+pub fn mine(directory: &PathBuf, config: Config) {
     // Build the dependency graph
     info!("Building DP graph");
     let dg = DepGraph::new(directory);
@@ -39,4 +40,9 @@ pub fn mine(directory: &PathBuf, config: &Config, pool: &ThreadPool) {
                  comp.run();
              }
          });
+}
+
+/// Mine a single repository, using a dedicated thread pool.
+pub fn mine_one(directory: PathBuf, config: Config) {
+    mine(&directory, config);
 }

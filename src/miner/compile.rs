@@ -37,7 +37,7 @@ impl<'a> Compiler<'a> {
         let source = match interface.preprocess(&root_dir, &root_dir.join(file.path())) {
             Ok(s) => s,
             Err(_) => {
-                error!("Failed to preprocess: {:?}", file.path());
+                error!("Failed to preprocess '{:?}'", file.path());
                 return Err(())
             },
         };
