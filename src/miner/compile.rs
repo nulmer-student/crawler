@@ -6,7 +6,7 @@ use crate::interface::{Interface, CompileResult};
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use log::info;
+use log::{info, error};
 
 /// This struct contains the functionality to compile a single source file.
 pub struct Compiler<'a> {
@@ -30,24 +30,30 @@ impl<'a> Compiler<'a> {
         dg: &'a DepGraph,
         config: &'a Config,
         interface: Arc<dyn Interface + Send>
-    ) -> Self {
+    ) -> Result<Compiler<'a>, ()> {
         let root_dir = dg.root();
 
         // Preprocess the source file
         let source = match interface.preprocess(&root_dir, &root_dir.join(file.path())) {
             Ok(s) => s,
-            Err(_) => panic!("Failed to preprocess"),
+            Err(_) => {
+                error!("Failed to preprocess: {:?}", file.path());
+                return Err(())
+            },
         };
 
         // Create the header selector
         let selector = Selector::new(file.clone(), dg, config);
 
-        return Self { config, interface, root_dir, file, source, selector };
+        return Ok(Self { config, interface, root_dir, file, source, selector });
     }
 
     /// Try possible header combinations.
     pub fn run(&mut self) {
         loop {
+            // NOTE: Remove this ↓
+            break;
+
             // Get the next possible header combination
             let Some(headers) = self.selector.step() else {
                 break;
@@ -68,7 +74,7 @@ impl<'a> Compiler<'a> {
 
     /// Attempt to compile a single file.
     fn try_compile(&self, headers: Vec<File>) -> CompileResult {
-        info!("Compile '{:?}'", self.file);
+        // info!("Compile '{:?}'", self.file);
 
         let headers: Vec<_> = headers
             .iter()

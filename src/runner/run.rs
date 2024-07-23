@@ -1,4 +1,7 @@
+use std::panic;
+
 use crate::config::Config;
+use crate::miner::mine;
 use super::db;
 use super::git::RepoData;
 
@@ -6,7 +9,7 @@ use rayon::iter::IntoParallelRefIterator;
 use rayon::{current_thread_index, prelude::*, ThreadPool};
 use sqlx::{self, Row};
 use sqlx::any::AnyRow;
-use log::info;
+use log::{info, error};
 
 // =============================================================================
 // Top-Level Runner
@@ -42,9 +45,11 @@ pub fn run_all(config: &Config) {
     // Mine all repos
     run_pool.install(|| {
         let _ = repos.par_iter().for_each(|repo| {
+            info!("Before");
             let pool = &miner_pools[current_thread_index().unwrap()];
             let mut runner = Runner::new(config, pool, repo.clone());
             runner.run();
+            info!("After");
         });
     })
 }
@@ -88,9 +93,14 @@ impl<'a> Runner<'a> {
         let _ = self.repo.git_clone(&self.config.runner.tmp_dir);
 
         // Run the miner
-        // TODO
+        let dir = (&self.repo.dir).clone().unwrap(); // Dir is cloned
+        let result = mine(&dir, self.config, self.pool);
+
+        // if result.is_err() {
+        //     error!("Failed mining: '{}'", self.repo.name);
+        // }
 
         // Set this repo as mined
-        // TODO
+        info!("Finished mining: '{}'", self.repo.name);
     }
 }

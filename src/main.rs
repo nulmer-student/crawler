@@ -106,7 +106,13 @@ fn main() {
     match matches.subcommand() {
         Some(("mine", sub)) => {
             let path = get_path(sub, "path");
-            miner::mine(&path, &config);
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(config.miner.threads)
+                .thread_name(|i| format!("min-{}", i))
+                .build()
+                .expect("Failed to create miner thread pool");
+
+            miner::mine(&path, &config, &pool);
         },
         Some(("crawl", _sub)) => {
             runner::crawl(&config);

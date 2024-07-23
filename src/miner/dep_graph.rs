@@ -115,19 +115,18 @@ impl<'a> DepGraph<'a> {
 
         // Intern each match
         let mut acc: Vec<Declare> = vec![];
-        info!("{:?}", file);
-        let contents = fs::read_to_string(root.join(file.path())).unwrap();
-
-        for (body, [first, path, _last]) in pattern.captures_iter(&contents).map(|c| c.extract::<3>()) {
-            match first {
-                "<" => {
-                    acc.push(Declare::new(path, DeclareType::System))
-                },
-                "\"" => {
-                    acc.push(Declare::new(path, DeclareType::User))
-                },
-                _ => {
-                    panic!("Invalid header: '{}'", body);
+        if let Ok(contents) = fs::read_to_string(root.join(file.path())) {
+            for (body, [first, path, _last]) in pattern.captures_iter(&contents).map(|c| c.extract::<3>()) {
+                match first {
+                    "<" => {
+                        acc.push(Declare::new(path, DeclareType::System))
+                    },
+                    "\"" => {
+                        acc.push(Declare::new(path, DeclareType::User))
+                    },
+                    _ => {
+                        panic!("Invalid header: '{}'", body);
+                    }
                 }
             }
         }

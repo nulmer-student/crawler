@@ -10,13 +10,15 @@ use crate::config::Config;
 use crate::interface;
 
 use std::path::PathBuf;
-use rayon::prelude::*;
+use rayon::{prelude::*, ThreadPool};
+use log::info;
 
 /// Build a dependency graph of the source an header files in DIRECTORY.
 ///
-/// Currently, only *.c and *.h files are supported.
-pub fn mine(directory: &PathBuf, config: &Config) {
+/// Currently, only `*.c` and `*.h` files are supported.
+pub fn mine(directory: &PathBuf, config: &Config, pool: &ThreadPool) {
     // Build the dependency graph
+    info!("Building DP graph");
     let dg = DepGraph::new(directory);
 
     // Load the interface
@@ -25,12 +27,16 @@ pub fn mine(directory: &PathBuf, config: &Config) {
     // Compile each file
     let _ = dg.source_files().par_iter()
          .for_each(|file| {
-              let mut compiler = Compiler::new(
-                  file.clone(),
-                  &dg,
-                  &config,
-                  interface.clone()
-              );
-              compiler.run();
+             let compiler = Compiler::new(
+                 file.clone(),
+                 &dg,
+                 &config,
+                 interface.clone()
+             );
+
+             // Skip files for which we cannot create a compiler
+             if let Ok(mut comp) = compiler {
+                 comp.run();
+             }
          });
 }
