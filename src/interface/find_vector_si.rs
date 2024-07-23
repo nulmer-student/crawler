@@ -1,21 +1,13 @@
-use super::{Interface, InternResult, CompileResult};
-
-use std::path::PathBuf;
+use super::{CompileInput, CompileResult, Interface, InternResult, InternInput};
 
 pub struct FindVectorSI {}
 
 impl Interface for FindVectorSI {
-    fn compile(
-        &self,
-        _content: &str,
-        _root: &PathBuf,
-        _file: &PathBuf,
-        _headers: &Vec<PathBuf>
-    ) -> CompileResult {
+    fn compile(&self, input: CompileInput) -> CompileResult {
         return Err(());
     }
 
-    fn intern(&self, _content: &str) -> InternResult {
+    fn intern(&self, input: InternInput) -> InternResult {
         return Err(());
     }
 }

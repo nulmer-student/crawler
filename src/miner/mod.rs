@@ -10,9 +10,8 @@ use crate::config::Config;
 use crate::interface;
 
 use std::path::PathBuf;
-use rayon::{prelude::*, ThreadPool};
+use rayon::prelude::*;
 use log::info;
-use crossbeam::sync::WaitGroup;
 
 /// Build a dependency graph of the source an header files in DIRECTORY.
 ///
@@ -23,7 +22,7 @@ pub fn mine(directory: &PathBuf, config: Config) {
     let dg = DepGraph::new(directory);
 
     // Load the interface
-    let interface = interface::get_interface(&config.interface);
+    let interface = interface::get_interface(&config.interface.name);
 
     // Compile each file
     let _ = dg.source_files().par_iter()

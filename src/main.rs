@@ -57,9 +57,12 @@ fn get_path(args: &ArgMatches, name: &str) -> PathBuf {
 
 /// Setup application logging
 fn setup_logging(config: &crawler_config::Config) -> log4rs::Handle {
+    // let level = log::LevelFilter::Info;
+    let level = log::LevelFilter::Debug;
+
     // Log entry pattern
     let pattern = Box::new(PatternEncoder::new(
-        "{d(%Y-%m-%d %H:%M:%S)} {h({l}): <5} {T: <8} {t: <25} {L: >4} - {m}{n}"
+        "{d(%Y-%m-%d %H:%M:%S)} {h({l}): <5} {T: <8} {({t}:{L}): <30} - {m}{n}"
     ));
 
     // Log to stderr
@@ -84,7 +87,7 @@ fn setup_logging(config: &crawler_config::Config) -> log4rs::Handle {
             Root::builder()
                 .appender("logfile")
                 .appender("stderr")
-                .build(log::LevelFilter::Info),
+                .build(level),
         )
         .unwrap();
 

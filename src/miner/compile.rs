@@ -2,11 +2,11 @@ use super::dep_graph::DepGraph;
 use super::select::Selector;
 use super::types::File;
 use crate::config::Config;
-use crate::interface::{Interface, CompileResult};
+use crate::interface::{CompileInput, CompileResult, Interface, InternInput, MatchData, PreInput};
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use log::{info, error};
+use log::{info, error, debug};
 
 /// This struct contains the functionality to compile a single source file.
 pub struct Compiler<'a> {
@@ -21,6 +21,9 @@ pub struct Compiler<'a> {
 
     // Header selection
     selector: Selector<'a>,
+
+    // Match data
+    matches: Vec<MatchData>,
 }
 
 impl<'a> Compiler<'a> {
@@ -33,8 +36,14 @@ impl<'a> Compiler<'a> {
     ) -> Result<Compiler<'a>, ()> {
         let root_dir = dg.root();
 
+        let input = PreInput {
+            config,
+            root: &root_dir,
+            file: &root_dir.join(file.path()),
+        };
+
         // Preprocess the source file
-        let source = match interface.preprocess(&root_dir, &root_dir.join(file.path())) {
+        let source = match interface.preprocess(input) {
             Ok(s) => s,
             Err(_) => {
                 error!("Failed to preprocess '{:?}'", file.path());
@@ -44,16 +53,16 @@ impl<'a> Compiler<'a> {
 
         // Create the header selector
         let selector = Selector::new(file.clone(), dg, config);
+        let matches = vec![];
 
-        return Ok(Self { config, interface, root_dir, file, source, selector });
+        return Ok(Self {
+            config, interface, root_dir, file, source, selector, matches
+        });
     }
 
     /// Try possible header combinations.
     pub fn run(&mut self) {
         loop {
-            // NOTE: Remove this ↓
-            break;
-
             // Get the next possible header combination
             let Some(headers) = self.selector.step() else {
                 break;
@@ -61,8 +70,8 @@ impl<'a> Compiler<'a> {
 
             // Try to compile
             match self.try_compile(headers) {
-                Ok(s) => {
-                    info!("{:#?}", s);
+                Ok(mut s) => {
+                    self.matches.append(&mut s);
                     break;
                 },
                 Err(_) => {
@@ -70,22 +79,37 @@ impl<'a> Compiler<'a> {
                 },
             }
         }
+
+        // If there are any matches, intern them
+        debug!("Interning results ({})", self.matches.len());
+        let input = InternInput {
+            config: self.config,
+            root: self.root_dir,
+            file: self.file.path(),
+            data: &self.matches,
+        };
+        match self.interface.intern(input) {
+            Ok(_) => {},
+            Err(e) => error!("Failed to intern: {:?}", e),
+        }
     }
 
     /// Attempt to compile a single file.
     fn try_compile(&self, headers: Vec<File>) -> CompileResult {
-        // info!("Compile '{:?}'", self.file);
+        debug!("Compile '{:?}'", self.file);
 
         let headers: Vec<_> = headers
             .iter()
             .map(|h| h.path().clone())
             .collect();
 
-        return self.interface.compile(
-            &self.source,
-            self.root_dir,
-            self.file.path(),
-            &headers
-        );
+        let input = CompileInput {
+            config: self.config,
+            root: self.root_dir,
+            file: self.file.path(),
+            content: &self.source,
+            headers: &headers
+        };
+        return self.interface.compile(input);
     }
 }
