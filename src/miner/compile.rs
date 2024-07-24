@@ -21,9 +21,6 @@ pub struct Compiler<'a> {
 
     // Header selection
     selector: Selector<'a>,
-
-    // Match data
-    matches: Vec<MatchData>,
 }
 
 impl<'a> Compiler<'a> {
@@ -53,15 +50,16 @@ impl<'a> Compiler<'a> {
 
         // Create the header selector
         let selector = Selector::new(file.clone(), dg, config);
-        let matches = vec![];
 
         return Ok(Self {
-            config, interface, root_dir, file, source, selector, matches
+            config, interface, root_dir, file, source, selector
         });
     }
 
     /// Try possible header combinations.
     pub fn run(&mut self) {
+        let mut match_data: Option<MatchData> = None;
+
         loop {
             // Get the next possible header combination
             let Some(headers) = self.selector.step() else {
@@ -70,27 +68,30 @@ impl<'a> Compiler<'a> {
 
             // Try to compile
             match self.try_compile(headers) {
-                Ok(mut s) => {
-                    self.matches.append(&mut s);
+                Ok(s) => {
+                    match_data = Some(s);
                     break;
                 },
                 Err(_) => {
+                    debug!("Failed to compile '{:?}'", self.file);
                     continue;
                 },
             }
         }
 
         // If there are any matches, intern them
-        debug!("Interning results ({})", self.matches.len());
-        let input = InternInput {
-            config: self.config,
-            root: self.root_dir,
-            file: self.file.path(),
-            data: &self.matches,
-        };
-        match self.interface.intern(input) {
-            Ok(_) => {},
-            Err(e) => error!("Failed to intern: {:?}", e),
+        if let Some(data) = match_data {
+            debug!("Interning results");
+            let input = InternInput {
+                config: self.config,
+                root: self.root_dir,
+                file: &self.file_full(),
+                data: &data,
+            };
+            match self.interface.intern(input) {
+                Ok(_) => {},
+                Err(e) => error!("Failed to intern: {:?}", e),
+            }
         }
     }
 
@@ -98,18 +99,27 @@ impl<'a> Compiler<'a> {
     fn try_compile(&self, headers: Vec<File>) -> CompileResult {
         debug!("Compile '{:?}'", self.file);
 
+        let input = CompileInput {
+            config: self.config,
+            root: self.root_dir,
+            file: &self.file_full(),
+            content: &self.source,
+            headers: &self.qualify_headers(headers),
+        };
+        return self.interface.compile(input);
+    }
+
+    /// Make headers relative to the current file.
+    fn qualify_headers(&self, headers: Vec<File>) -> Vec<PathBuf> {
         let headers: Vec<_> = headers
             .iter()
             .map(|h| h.path().clone())
             .collect();
+        return headers;
+    }
 
-        let input = CompileInput {
-            config: self.config,
-            root: self.root_dir,
-            file: self.file.path(),
-            content: &self.source,
-            headers: &headers
-        };
-        return self.interface.compile(input);
+    /// Return the full path of the current file.
+    fn file_full(&self) -> PathBuf {
+        return self.root_dir.join(self.file.path());
     }
 }

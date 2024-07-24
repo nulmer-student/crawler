@@ -28,14 +28,14 @@ pub struct CompileInput<'a> {
     pub headers: &'a Vec<PathBuf>   // Header choices
 }
 
-pub type CompileResult = Result<Vec<MatchData>, ()>;
+pub type CompileResult = Result<MatchData, ()>;
 
 #[allow(dead_code)]
 pub struct InternInput<'a> {
     pub config: &'a Config,
     pub root: &'a PathBuf,
     pub file: &'a PathBuf,
-    pub data: &'a [MatchData],
+    pub data: &'a MatchData,
 }
 
 pub type InternResult = Result<(), ()>;
