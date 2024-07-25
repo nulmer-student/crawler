@@ -1,6 +1,6 @@
 use super::dep_graph::DepGraph;
 use super::select::Selector;
-use super::types::File;
+use super::types::{Declare, File};
 use crate::config::Config;
 use crate::interface::{CompileInput, CompileResult, Interface, InternInput, MatchData, PreInput};
 
@@ -66,6 +66,8 @@ impl<'a> Compiler<'a> {
                 break;
             };
 
+            // TODO: Don't try multiple combinations more than once
+
             // Try to compile
             match self.try_compile(headers) {
                 Ok(s) => {
@@ -96,7 +98,7 @@ impl<'a> Compiler<'a> {
     }
 
     /// Attempt to compile a single file.
-    fn try_compile(&self, headers: Vec<File>) -> CompileResult {
+    fn try_compile(&self, headers: Vec<(File, Declare)>) -> CompileResult {
         debug!("Compile '{:?}'", self.file);
 
         let input = CompileInput {
@@ -110,12 +112,30 @@ impl<'a> Compiler<'a> {
     }
 
     /// Make headers relative to the current file.
-    fn qualify_headers(&self, headers: Vec<File>) -> Vec<PathBuf> {
-        let headers: Vec<_> = headers
+    fn qualify_headers(&self, headers: Vec<(File, Declare)>) -> Vec<PathBuf> {
+        // Get the absolute paths of the headers
+        let abs: Vec<_> = headers
             .iter()
-            .map(|h| h.path().clone())
+            .map(|h| self.root_dir.join(h.0.path()))
             .collect();
-        return headers;
+
+        // Remove the declaration part of each header
+        let mut acc: Vec<PathBuf> = vec![];
+        for i in 0..headers.len() {
+            // Find the length of the declaration
+            let decl_parts: Vec<_> = headers[i].1.path().components().collect();
+            let size = decl_parts.len();
+
+            // Remove from the end SIZE components.
+            let header_parts: Vec<_> = abs[i].components().rev().collect();
+            let rest = &header_parts[size..];
+
+            // Rebuild the path
+            let path = PathBuf::from_iter(rest.iter().rev());
+            acc.push(path)
+        }
+
+        return acc;
     }
 
     /// Return the full path of the current file.

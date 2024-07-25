@@ -1,8 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
+use log::{debug, error};
+
 use crate::config::Config;
 use super::dep_graph::DepGraph;
-use super::types::File;
+use super::types::{Declare, File};
 
 /// Represents an action while searching the dependency graph.
 #[derive(Debug, Clone)]
@@ -21,7 +23,7 @@ pub struct Selector<'a> {
     // Graph traversal
     dg: &'a DepGraph<'a>,
     stack: Vec<Action>,             // Current path through the dep graph
-    seen: HashSet<File>,            // Declarations that we have tried
+    seen: HashMap<File, Declare>,   // Declarations that we have tried
     parents: HashMap<File, File>,   // Stores tree parent
 
     // Attempts
@@ -42,7 +44,7 @@ impl<'a> Selector<'a> {
     }
 
     /// Returns the next possible header choice, or None if none are left.
-    pub fn step(&mut self) -> Option<Vec<File>> {
+    pub fn step(&mut self) -> Option<Vec<(File, Declare)>> {
         while self.tries > 0 {
             // Go back to the last choice
             if self.once {
@@ -91,8 +93,8 @@ impl<'a> Selector<'a> {
         match self.dg.deps(&file) {
             // Explore the dependencies
             Some(deps) => {
-                for (_decl, possible) in deps {
-                    let found = self.visit(&file, possible);
+                for (decl, possible) in deps {
+                    let found = self.visit(&file, &decl, possible);
 
                     // Don't explore any other children
                     if found {
@@ -126,16 +128,16 @@ impl<'a> Selector<'a> {
         return true;
     }
 
-    fn visit(&mut self, file: &File, possible: &[File]) -> bool {
+    fn visit(&mut self, file: &File, decl: &Declare, possible: &[File]) -> bool {
         let child_file = possible.last().unwrap();
 
         // If we have already seen this child, don't visit
-        if self.seen.contains(child_file) {
+        if self.seen.contains_key(child_file) {
             return false;
         }
 
         // Mark this child as visited
-        self.seen.insert(child_file.clone());
+        self.seen.insert(child_file.clone(), decl.clone());
 
         // Store the parent so we can backtrack
         self.parents.insert(child_file.clone(), file.clone());
@@ -219,19 +221,30 @@ impl<'a> Selector<'a> {
     }
 
     /// Return the headers from a graph traversal
-    fn get_headers(&self) -> Vec<File> {
+    fn get_headers(&self) -> Vec<(File, Declare)> {
         let mut acc = vec![];
+
         for action in &self.stack {
-            match action {
+            // Collect the files we visit from forewards
+            let (dest, decl) = match action {
                 Action::Foreward(_src, dest) => {
-                    acc.push(dest.clone());
+                    (dest, self.seen.get(&dest))
                 }
                 Action::Many(_src, possible) => {
-                    acc.push(possible.last().unwrap().clone());
+                    let dest = possible.last().unwrap();
+                    (dest, self.seen.get(&dest))
                 }
-                _ => { },
+                _ => { continue; },
+            };
+
+            // Add the file
+            if let Some(in_decl) = decl {
+                acc.push((dest.clone(), in_decl.clone()));
+            } else {
+                error!("Seen table is missing declaration for: {:?}", dest);
             }
         }
+
         return acc;
     }
 }
