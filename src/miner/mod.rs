@@ -25,19 +25,14 @@ pub fn mine(directory: &PathBuf, config: Config) {
     // Compile each file
     let match_data: Vec<MatchData> = dg.source_files().par_iter()
         .filter_map(|file| {
-            let compiler = Compiler::new(
+            // Try to compile the file
+            let mut compiler = Compiler::new(
                  file.clone(),
                  &dg,
                  &config,
                  interface.clone()
              );
-
-             // Skip files for which we cannot create a compiler
-             if let Ok(mut comp) = compiler {
-                 return comp.run();
-             } else {
-                 return None;
-             }
+            return compiler.run();
          }).collect();
 
     // Intern the matches

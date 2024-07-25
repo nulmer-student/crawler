@@ -17,7 +17,6 @@ pub struct Compiler<'a> {
     // File we are compiling
     root_dir: &'a PathBuf,  // Directory of the repository
     file: File,             // File we are compiling
-    source: String,         // String form of the file
 
     // Header selection
     selector: Selector<'a>,
@@ -30,46 +29,44 @@ impl<'a> Compiler<'a> {
         dg: &'a DepGraph,
         config: &'a Config,
         interface: Arc<dyn Interface + Send>
-    ) -> Result<Compiler<'a>, ()> {
+    ) -> Self {
         let root_dir = dg.root();
-
-        let input = PreInput {
-            config,
-            root: &root_dir,
-            file: &root_dir.join(file.path()),
-        };
-
-        // Preprocess the source file
-        let source = match interface.preprocess(input) {
-            Ok(s) => s,
-            Err(_) => {
-                error!("Failed to preprocess '{:?}'", file.path());
-                return Err(())
-            },
-        };
 
         // Create the header selector
         let selector = Selector::new(file.clone(), dg, config);
 
-        return Ok(Self {
-            config, interface, root_dir, file, source, selector
-        });
+        return Self { config, interface, root_dir, file, selector };
     }
 
     /// Try possible header combinations.
     pub fn run(&mut self) -> Option<MatchData> {
-        let mut match_data: Option<MatchData> = None;
+        // Preprocess the source file
+        let input = PreInput {
+            config: self.config,
+            root: &self.root_dir,
+            file: &self.file_full(),
+        };
 
+        let source = match self.interface.preprocess(input) {
+            Ok(s) => s,
+            Err(_) => {
+                error!("Failed to preprocess '{:?}'", self.file.path());
+                return None;
+            },
+        };
+
+        // Compile the file
+        let mut match_data: Option<MatchData> = None;
         loop {
             // Get the next possible header combination
             let Some(headers) = self.selector.step() else {
                 break;
             };
 
-            // TODO: Don't try multiple combinations more than once
+            // TODO: Don't try any combinations more than once
 
             // Try to compile
-            match self.try_compile(headers) {
+            match self.try_compile(&source, headers) {
                 Ok(s) => {
                     match_data = Some(s);
                     break;
@@ -82,32 +79,17 @@ impl<'a> Compiler<'a> {
         }
 
         return match_data;
-
-        // // If there are any matches, intern them
-        // if let Some(data) = match_data {
-        //     debug!("Interning results");
-        //     let input = InternInput {
-        //         config: self.config,
-        //         root: self.root_dir,
-        //         file: &self.file_full(),
-        //         data: &data,
-        //     };
-        //     match self.interface.intern(input) {
-        //         Ok(_) => {},
-        //         Err(e) => error!("Failed to intern: {:?}", e),
-        //     }
-        // }
     }
 
     /// Attempt to compile a single file.
-    fn try_compile(&self, headers: Vec<(File, Declare)>) -> CompileResult {
+    fn try_compile(&self, source: &str, headers: Vec<(File, Declare)>) -> CompileResult {
         debug!("Compile '{:?}'", self.file);
 
         let input = CompileInput {
             config: self.config,
             root: self.root_dir,
             file: &self.file_full(),
-            content: &self.source,
+            content: source,
             headers: &self.qualify_headers(headers),
         };
         return self.interface.compile(input);
