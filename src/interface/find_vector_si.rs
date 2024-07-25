@@ -10,19 +10,24 @@ impl Interface for FindVectorSI {
     fn compile(&self, input: CompileInput) -> CompileResult {
         // Get the path to clang from the args
         let clang = &input.config.interface.args["clang"];
-        debug!("{:?}", input.headers);
+
+        // Format the headers with "-I"
+        let headers: Vec<_> = input
+            .headers
+            .iter()
+            .map(|h| format!("-I{}", h.to_str().unwrap()))
+            .collect();
 
         // Compilation command
-        let mut compile = Command::new(clang)
+        let mut cmd = Command::new(clang);
+        let mut compile = cmd
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .arg("-c")
-            .arg("-x")
-            .arg("c")   // TODO: Only C
-            // FIXME: Insert headers
-            .arg("-o")
-            .arg("/dev/null")
+            .args(["-x", "c"])
+            .args(headers)
+            .args(["-o", "/dev/null"])
             .arg("-emit-llvm")
             .arg("-O3")
             .arg("-Rpass=loop-vectorize")
