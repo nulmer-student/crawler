@@ -7,7 +7,7 @@ mod types;
 use compile::Compiler;
 use dep_graph::DepGraph;
 use crate::config::Config;
-use crate::interface;
+use crate::interface::{self, MatchData};
 
 use std::path::PathBuf;
 use rayon::prelude::*;
@@ -23,9 +23,9 @@ pub fn mine(directory: &PathBuf, config: Config) {
     let interface = interface::get_interface(&config.interface.name);
 
     // Compile each file
-    let _ = dg.source_files().par_iter()
-         .for_each(|file| {
-             let compiler = Compiler::new(
+    let match_data: Vec<MatchData> = dg.source_files().par_iter()
+        .filter_map(|file| {
+            let compiler = Compiler::new(
                  file.clone(),
                  &dg,
                  &config,
@@ -34,9 +34,14 @@ pub fn mine(directory: &PathBuf, config: Config) {
 
              // Skip files for which we cannot create a compiler
              if let Ok(mut comp) = compiler {
-                 comp.run();
+                 return comp.run();
+             } else {
+                 return None;
              }
-         });
+         }).collect();
+
+    // Intern the matches
+    // TODO
 }
 
 /// Mine a single repository, using a dedicated thread pool.

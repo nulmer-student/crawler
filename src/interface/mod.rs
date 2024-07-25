@@ -8,7 +8,7 @@ use std::fs;
 use std::sync::Arc;
 use log::error;
 
-pub type MatchData = Box<dyn Any>;
+pub type MatchData = Box<dyn Any + Send + Sync>;
 
 #[allow(dead_code)]
 pub struct PreInput<'a> {

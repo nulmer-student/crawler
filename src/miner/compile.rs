@@ -57,7 +57,7 @@ impl<'a> Compiler<'a> {
     }
 
     /// Try possible header combinations.
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> Option<MatchData> {
         let mut match_data: Option<MatchData> = None;
 
         loop {
@@ -81,20 +81,22 @@ impl<'a> Compiler<'a> {
             }
         }
 
-        // If there are any matches, intern them
-        if let Some(data) = match_data {
-            debug!("Interning results");
-            let input = InternInput {
-                config: self.config,
-                root: self.root_dir,
-                file: &self.file_full(),
-                data: &data,
-            };
-            match self.interface.intern(input) {
-                Ok(_) => {},
-                Err(e) => error!("Failed to intern: {:?}", e),
-            }
-        }
+        return match_data;
+
+        // // If there are any matches, intern them
+        // if let Some(data) = match_data {
+        //     debug!("Interning results");
+        //     let input = InternInput {
+        //         config: self.config,
+        //         root: self.root_dir,
+        //         file: &self.file_full(),
+        //         data: &data,
+        //     };
+        //     match self.interface.intern(input) {
+        //         Ok(_) => {},
+        //         Err(e) => error!("Failed to intern: {:?}", e),
+        //     }
+        // }
     }
 
     /// Attempt to compile a single file.

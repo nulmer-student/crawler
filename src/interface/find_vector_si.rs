@@ -1,4 +1,4 @@
-use super::{CompileInput, CompileResult, Interface, InternResult, InternInput};
+use super::{CompileInput, CompileResult, Interface, InternInput, InternResult, MatchData};
 use std::{io::Write, process::{Command, Stdio}};
 use std::any::Any;
 
@@ -43,7 +43,7 @@ impl Interface for FindVectorSI {
 
         // If the compilation was successful, return the stderr
         if out.status.success() {
-            let result: Box<dyn Any> = Box::new(out.stderr);
+            let result: MatchData = Box::new(out.stderr);
             return Ok(result);
         }
 
