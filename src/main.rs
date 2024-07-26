@@ -57,9 +57,17 @@ fn get_path(args: &ArgMatches, name: &str) -> PathBuf {
 
 /// Setup application logging
 fn setup_logging(config: &crawler_config::Config) -> log4rs::Handle {
-    let level = log::LevelFilter::Info;
-    // let level = log::LevelFilter::Debug;
-    // let level = log::LevelFilter::Trace;
+    // Get the log level from the config
+    let log_level: &str = &config.runner.log_level;
+    let level = match log_level {
+        "off"   => log::LevelFilter::Off,
+        "error" => log::LevelFilter::Error,
+        "warn"  => log::LevelFilter::Warn,
+        "info"  => log::LevelFilter::Info,
+        "debug" => log::LevelFilter::Debug,
+        "trace" => log::LevelFilter::Trace,
+        _ => panic!("Invalid log level: '{}'", log_level),
+    };
 
     // Log entry pattern
     let pattern = Box::new(PatternEncoder::new(

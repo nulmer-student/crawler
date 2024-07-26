@@ -44,6 +44,7 @@ pub struct Runner {
     pub languages: HashSet<String>,
     pub github_api_key: String,
     pub log_dir: PathBuf,
+    pub log_level: String,
     pub tmp_dir: PathBuf,
 }
 
