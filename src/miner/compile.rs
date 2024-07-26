@@ -4,9 +4,10 @@ use super::types::{Declare, File};
 use crate::config::Config;
 use crate::interface::{CompileInput, CompileResult, Interface, MatchData, PreInput};
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
-use log::{error, debug, trace};
+use log::{error, debug, info};
 
 /// This struct contains the functionality to compile a single source file.
 pub struct Compiler<'a> {
@@ -20,6 +21,7 @@ pub struct Compiler<'a> {
 
     // Header selection
     selector: Selector<'a>,
+    tried: HashSet<Vec<PathBuf>>,
 }
 
 impl<'a> Compiler<'a> {
@@ -34,8 +36,9 @@ impl<'a> Compiler<'a> {
 
         // Create the header selector
         let selector = Selector::new(file.clone(), dg, config);
+        let tried = HashSet::new();
 
-        return Self { config, interface, root_dir, file, selector };
+        return Self { config, interface, root_dir, file, selector, tried };
     }
 
     /// Try possible header combinations.
@@ -62,8 +65,14 @@ impl<'a> Compiler<'a> {
                 return Err("Ran out of header possibilities".to_string());
             };
 
-            // TODO: Don't try any combination more than once
+            // Don't try any header combination more than once
+            let headers = self.qualify_headers(headers);
             debug!("Headers: {:?}", headers);
+            if self.tried.contains(&headers) {
+                debug!("Already seen headers: {:?}", headers);
+                continue;
+            }
+            self.tried.insert(headers.clone());
 
             // Try to compile
             match self.try_compile(&source, headers) {
@@ -79,7 +88,7 @@ impl<'a> Compiler<'a> {
     }
 
     /// Attempt to compile a single file.
-    fn try_compile(&self, source: &str, headers: Vec<(File, Declare)>) -> CompileResult {
+    fn try_compile(&self, source: &str, headers: Vec<PathBuf>) -> CompileResult {
         debug!("Compile {:?}", self.file.path());
 
         let input = CompileInput {
@@ -87,7 +96,7 @@ impl<'a> Compiler<'a> {
             root: self.root_dir,
             file: &self.file_full(),
             content: source,
-            headers: &self.qualify_headers(headers),
+            headers: &headers,
         };
         return self.interface.compile(input);
     }
@@ -122,7 +131,19 @@ impl<'a> Compiler<'a> {
             acc.push(path)
         }
 
-        return acc;
+        // Remove any duplicates
+        let mut minimal = vec![];
+        let mut seen: HashSet<PathBuf> = HashSet::new();
+
+        for h in acc {
+            if seen.contains(&h) { continue; }
+            seen.insert(h.clone());
+            minimal.push(h);
+        }
+
+        // Sort, to allow for easy easy duplicate checking
+        minimal.sort_unstable();
+        return minimal;
     }
 
     /// Return the full path of the current file.
