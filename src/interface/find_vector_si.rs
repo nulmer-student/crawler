@@ -116,6 +116,7 @@ impl Interface for FindVectorSI {
 
             // Return the result
             let result: MatchData = Box::new(Match {
+                // Return the relative path
                 file: input.file.strip_prefix(input.root).unwrap().to_path_buf(),
                 output,
             });
@@ -140,7 +141,6 @@ impl Interface for FindVectorSI {
                         .collect::<Vec<i64>>()
                         .try_into()
                         .unwrap();
-                    println!("{:?}", args);
 
                     // Add the file to the files table
                     let file_id = input.db.rt.block_on(ensure_file(

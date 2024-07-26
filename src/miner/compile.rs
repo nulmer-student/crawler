@@ -2,7 +2,7 @@ use super::dep_graph::DepGraph;
 use super::select::Selector;
 use super::types::{Declare, File};
 use crate::config::Config;
-use crate::interface::{CompileInput, CompileResult, Interface, InternInput, MatchData, PreInput};
+use crate::interface::{CompileInput, CompileResult, Interface, MatchData, PreInput};
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -39,7 +39,7 @@ impl<'a> Compiler<'a> {
     }
 
     /// Try possible header combinations.
-    pub fn run(&mut self) -> Option<MatchData> {
+    pub fn run(&mut self) -> Result<MatchData, String> {
         // Preprocess the source file
         let input = PreInput {
             config: self.config,
@@ -51,16 +51,15 @@ impl<'a> Compiler<'a> {
             Ok(s) => s,
             Err(_) => {
                 error!("Failed to preprocess '{:?}'", self.file.path());
-                return None;
+                return Err("Failed to preprocess".to_string());
             },
         };
 
         // Compile the file
-        let mut match_data: Option<MatchData> = None;
         loop {
             // Get the next possible header combination
             let Some(headers) = self.selector.step() else {
-                break;
+                return Err("Ran out of header possibilities".to_string());
             };
 
             // TODO: Don't try any combination more than once
@@ -68,22 +67,19 @@ impl<'a> Compiler<'a> {
             // Try to compile
             match self.try_compile(&source, headers) {
                 Ok(s) => {
-                    match_data = Some(s);
-                    break;
+                    return Ok(s);
                 },
                 Err(_) => {
-                    debug!("Failed to compile '{:?}'", self.file);
+                    debug!("Failed to compile '{:?}'", self.file.path());
                     continue;
                 },
             }
         }
-
-        return match_data;
     }
 
     /// Attempt to compile a single file.
     fn try_compile(&self, source: &str, headers: Vec<(File, Declare)>) -> CompileResult {
-        debug!("Compile '{:?}'", self.file);
+        debug!("Compile '{:?}'", self.file.path());
 
         let input = CompileInput {
             config: self.config,
