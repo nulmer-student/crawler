@@ -10,7 +10,8 @@ use regex::Regex;
 use log::info;
 
 lazy_static! {
-    static ref INCLUDE_PATTERN: Regex = Regex::new("#include ([\"<])([^\">]+)([\">])").unwrap();
+    static ref INCLUDE_PATTERN: Regex
+        = Regex::new("#include ([\"<])([^\">]+)([\">])").unwrap();
 }
 
 type AbbrevTable = HashMap<PathBuf, Vec<File>>;

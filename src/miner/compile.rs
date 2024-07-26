@@ -63,7 +63,7 @@ impl<'a> Compiler<'a> {
                 break;
             };
 
-            // TODO: Don't try any combinations more than once
+            // TODO: Don't try any combination more than once
 
             // Try to compile
             match self.try_compile(&source, headers) {

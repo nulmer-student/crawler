@@ -75,16 +75,6 @@ impl Database {
         )"
         ).execute(&self.pool).await?;
 
-        sqlx::query(
-            "create table if not exists files (
-             file_id     int,
-             repo_id     int,
-             path        text,
-             primary key (file_id),
-             foreign key (repo_id) references repos
-        )"
-        ).execute(&self.pool).await?;
-
         return Ok(());
     }
 }

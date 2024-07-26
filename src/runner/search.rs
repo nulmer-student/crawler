@@ -225,7 +225,10 @@ impl<'a> Search<'a> {
 
         match row {
             Ok(row) => {
-                return row.get::<i64, usize>(0) as usize;
+                match row.try_get::<i64, usize>(0) {
+                    Ok(min) => min as usize,
+                    Err(_) => INITIAL_MAX,
+                }
             },
             Err(_) => {
                 return INITIAL_MAX;

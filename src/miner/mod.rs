@@ -11,11 +11,12 @@ use crate::interface::{self, MatchData};
 
 use std::path::PathBuf;
 use rayon::prelude::*;
+use log::info;
 
 /// Build a dependency graph of the source an header files in DIRECTORY.
 ///
 /// Currently, only `*.c` and `*.h` files are supported.
-pub fn mine(directory: &PathBuf, config: Config) {
+pub fn mine(directory: &PathBuf, config: Config) -> Vec<MatchData> {
     // Build the dependency graph
     let dg = DepGraph::new(directory);
 
@@ -23,6 +24,7 @@ pub fn mine(directory: &PathBuf, config: Config) {
     let interface = interface::get_interface(&config.interface.name);
 
     // Compile each file
+    info!("Starting compilation");
     let match_data: Vec<MatchData> = dg.source_files().par_iter()
         .filter_map(|file| {
             // Try to compile the file
@@ -35,8 +37,7 @@ pub fn mine(directory: &PathBuf, config: Config) {
             return compiler.run();
          }).collect();
 
-    // Intern the matches
-    // TODO
+    return match_data;
 }
 
 /// Mine a single repository, using a dedicated thread pool.
