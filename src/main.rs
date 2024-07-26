@@ -57,8 +57,9 @@ fn get_path(args: &ArgMatches, name: &str) -> PathBuf {
 
 /// Setup application logging
 fn setup_logging(config: &crawler_config::Config) -> log4rs::Handle {
-    // let level = log::LevelFilter::Info;
-    let level = log::LevelFilter::Debug;
+    let level = log::LevelFilter::Info;
+    // let level = log::LevelFilter::Debug;
+    // let level = log::LevelFilter::Trace;
 
     // Log entry pattern
     let pattern = Box::new(PatternEncoder::new(

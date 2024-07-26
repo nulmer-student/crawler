@@ -6,7 +6,7 @@ use crate::interface::{CompileInput, CompileResult, Interface, MatchData, PreInp
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use log::{error, debug};
+use log::{error, debug, trace};
 
 /// This struct contains the functionality to compile a single source file.
 pub struct Compiler<'a> {
@@ -50,7 +50,7 @@ impl<'a> Compiler<'a> {
         let source = match self.interface.preprocess(input) {
             Ok(s) => s,
             Err(_) => {
-                error!("Failed to preprocess '{:?}'", self.file.path());
+                error!("Failed to preprocess {:?}", self.file.path());
                 return Err("Failed to preprocess".to_string());
             },
         };
@@ -63,6 +63,7 @@ impl<'a> Compiler<'a> {
             };
 
             // TODO: Don't try any combination more than once
+            debug!("Headers: {:?}", headers);
 
             // Try to compile
             match self.try_compile(&source, headers) {
@@ -70,7 +71,7 @@ impl<'a> Compiler<'a> {
                     return Ok(s);
                 },
                 Err(_) => {
-                    debug!("Failed to compile '{:?}'", self.file.path());
+                    debug!("Failed to compile {:?}", self.file.path());
                     continue;
                 },
             }
@@ -79,7 +80,7 @@ impl<'a> Compiler<'a> {
 
     /// Attempt to compile a single file.
     fn try_compile(&self, source: &str, headers: Vec<(File, Declare)>) -> CompileResult {
-        debug!("Compile '{:?}'", self.file.path());
+        debug!("Compile {:?}", self.file.path());
 
         let input = CompileInput {
             config: self.config,
@@ -93,6 +94,12 @@ impl<'a> Compiler<'a> {
 
     /// Make headers relative to the current file.
     fn qualify_headers(&self, headers: Vec<(File, Declare)>) -> Vec<PathBuf> {
+        // FIXME: Remove system headers
+        let headers: Vec<_> = headers
+            .iter()
+            .filter(|h| h.1.is_user())
+            .collect();
+
         // Get the absolute paths of the headers
         let abs: Vec<_> = headers
             .iter()

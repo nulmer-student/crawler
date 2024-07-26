@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use log::{debug, error};
+use log::{trace, error};
 
 use crate::config::Config;
 use super::dep_graph::DepGraph;
@@ -67,10 +67,10 @@ impl<'a> Selector<'a> {
 
     /// Explore for the next choice of headers.
     fn explore(&mut self) -> bool {
-        // println!("===== Explore =====");
-        // println!("Stack: {:#?}", self.stack);
-        // println!("Parents: {:#?}", self.parents);
-        // println!("Seen: {:#?}", self.seen);
+        trace!("===== Explore =====");
+        trace!("Stack: {:#?}", self.stack);
+        trace!("Parents: {:#?}", self.parents);
+        trace!("Seen: {:#?}", self.seen);
 
         // Get the action on the top of the stack
         let Some(action) = self.stack.last() else {
@@ -129,14 +129,15 @@ impl<'a> Selector<'a> {
     }
 
     fn visit(&mut self, file: &File, decl: &Declare, possible: &[File]) -> bool {
-        let child_file = possible.last().unwrap();
-
-        // If we have already seen this child, don't visit
-        if self.seen.contains_key(child_file) {
-            return false;
+        // Don't visit if we have seen any of the possibilities
+        for p in possible {
+            if self.seen.contains_key(p) {
+                return false;
+            }
         }
 
         // Mark this child as visited
+        let child_file = possible.last().unwrap(); // Always at least one
         self.seen.insert(child_file.clone(), decl.clone());
 
         // Store the parent so we can backtrack
@@ -166,10 +167,10 @@ impl<'a> Selector<'a> {
     /// Backtracks, & returns true if there are more choices, & false otherwise.
     fn backtrack(&mut self) -> bool {
         loop {
-            // println!("===== Backtrack =====");
-            // println!("Stack: {:#?}", self.stack);
-            // println!("Parents: {:#?}", self.parents);
-            // println!("Seen: {:#?}", self.seen);
+            trace!("===== Backtrack =====");
+            trace!("Stack: {:#?}", self.stack);
+            trace!("Parents: {:#?}", self.parents);
+            trace!("Seen: {:#?}", self.seen);
 
             // Get the action on the top of the stack
             let Some(action) = self.stack.last() else {
@@ -186,20 +187,28 @@ impl<'a> Selector<'a> {
 
                 // If we are at a choice point, go to the next choice
                 Action::Many(src, possible) => {
-                    if let Some((_last, rest)) = possible.split_last() {
+                    if let Some((last, rest)) = possible.split_last() {
+                        // Remove the current choice
+                        let decl = self.seen.get(&last).unwrap().clone();
+                        self.seen.remove(&last);
+
                         self.stack.pop();
                         if rest.len() > 0 {
                             // Remove the last possibility
-                            // self.seen.remove(&last);
                             self.stack.push(Action::Many(
                                 src.clone(), rest.to_vec())
                             );
 
+                            let new = rest.last().unwrap();
+
                             // Fix the parent
                             self.parents.insert(
-                                rest.last().unwrap().clone(),
+                                new.clone(),
                                 src.clone()
                             );
+
+                            // Add to the seen table
+                            self.seen.insert(new.clone(), decl.clone());
 
                             // Return that there are more possibilities
                             return true;
@@ -213,7 +222,6 @@ impl<'a> Selector<'a> {
                     self.stack.pop();
                 },
                 Action::Backward(_src, _dest) => {
-                    // self.seen.remove(&_dest);
                     self.stack.pop();
                 },
             }

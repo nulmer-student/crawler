@@ -9,7 +9,7 @@ use run::run_all;
 
 pub fn crawl(config: &Config) {
     // Search for matching repositories
-    // search(config);
+    search(config);
 
     // Mine each repository
     run_all(config);

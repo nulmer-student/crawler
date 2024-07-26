@@ -76,14 +76,29 @@ pub struct Declare {
     path: PathBuf,      // Path in the declaration, not in the referenced file
 }
 
+#[allow(dead_code)]
 impl Declare {
     pub fn new(path: &str, kind: DeclareType) -> Self {
         let path = PathBuf::from(path);
         return Self { kind, path };
     }
 
-    pub fn _kind(&self) -> DeclareType {
+    pub fn kind(&self) -> DeclareType {
         return self.kind.clone();
+    }
+
+    pub fn is_user(&self) -> bool {
+        match self.kind() {
+            DeclareType::User => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_system(&self) -> bool {
+        match self.kind() {
+            DeclareType::System => true,
+            _ => false,
+        }
     }
 
     pub fn path(&self) -> &PathBuf {

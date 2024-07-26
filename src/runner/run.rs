@@ -147,9 +147,8 @@ impl<'a> Runner<'a> {
             },
         };
 
-        // Set this repo as mined
+        // TODO: Set this repo as mined
         info!("Finished mining: '{}'", self.repo.name);
-        // TODO
     }
 }
 
