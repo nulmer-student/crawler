@@ -1,4 +1,4 @@
-mod find_vector_si;
+mod si;
 
 use crate::config::Config;
 use crate::runner::db;
@@ -89,7 +89,7 @@ pub trait Interface {
 pub fn get_interface(name: &str) -> Arc<dyn Interface + Send + Sync> {
     match name {
         "si" => {
-            Arc::new(find_vector_si::FindVectorSI {}) as Arc<dyn Interface + Send + Sync>
+            Arc::new(si::FindVectorSI {}) as Arc<dyn Interface + Send + Sync>
         },
         _ => { panic!("No interface with name: '{}'", name) },
     }
