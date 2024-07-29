@@ -12,7 +12,7 @@ use reqwest::blocking::Client;
 use reqwest::header;
 use serde_json;
 use serde_json::value::Value;
-use log::{info, error};
+use log::{debug, info, error};
 
 static USER_AGENT: &str = concat!(
     env!("CARGO_PKG_NAME"),
@@ -114,7 +114,7 @@ impl<'a> Search<'a> {
         let mut count = 0;  // # of repos we added
 
         for repo in repos {
-            info!("Adding repo: {:?} {:?}", repo.name, repo.id);
+            debug!("Adding repo: {:?} {:?}", repo.name, repo.id);
             match self.db.rt.block_on(self.add_repo(repo)) {
                 Ok(_) => { count += 1 },
                 // FIXME: Only ignore duplicate entries

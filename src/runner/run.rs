@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::interface::{self, get_interface, InitInput, InternInput, MatchData};
+use crate::interface::{get_interface, InitInput, InternInput, MatchData};
 use crate::miner::mine;
 use super::db;
 use super::git::RepoData;

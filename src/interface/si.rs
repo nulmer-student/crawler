@@ -5,7 +5,7 @@ use super::{
 
 use std::{io::Write, path::PathBuf, process::{Command, Stdio}};
 use lazy_static::lazy_static;
-use log::error;
+use log::{error, info};
 use regex::Regex;
 use sqlx::{self, Pool, Row};
 use sqlx::Any;
@@ -135,6 +135,8 @@ impl Interface for FindVectorSI {
                 for (_body, args) in pattern
                     .captures_iter(&entry.output).map(|c| c.extract::<5>())
                 {
+                    info!("{:?}", args);
+
                     let args: [i64; 5] = args
                         .iter()
                         .map(|a| a.parse::<i64>().unwrap())

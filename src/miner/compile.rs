@@ -7,7 +7,7 @@ use crate::interface::{CompileInput, CompileResult, Interface, MatchData, PreInp
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
-use log::{error, debug, info};
+use log::{error, debug};
 
 /// This struct contains the functionality to compile a single source file.
 pub struct Compiler<'a> {

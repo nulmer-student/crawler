@@ -3,7 +3,7 @@ use std::fs;
 
 use serde_json::value::Value;
 use sqlx::{any::AnyRow, Row};
-use log::{info, error};
+use log::{error, info, warn};
 
 #[derive(Clone, Debug)]
 pub struct RepoData {
@@ -49,10 +49,16 @@ impl RepoData {
 
     /// Clone this repo and return the directory cloned to.
     pub fn git_clone(&mut self, tmp_dir: &PathBuf) -> Result<(), String> {
+        info!("Starting clone of '{}'", self.name);
+
+        // If the directory already exists, delete what is there
         let dir = tmp_dir.join(format!("{}", self.id));
+        if dir.exists() {
+            warn!("Removing pre-existing files at: {:?}", dir);
+            let _ = fs::remove_dir_all(&dir);
+        }
 
         // Clone the repo
-        info!("Starting clone of '{}'", self.name);
         let out = Command::new("git")
             .arg("clone")
             .arg(&self.url)

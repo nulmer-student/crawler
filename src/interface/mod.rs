@@ -60,7 +60,7 @@ pub type InternResult = Result<(), ()>;
 pub trait Interface {
     /// Called once after the search has finished but before any preprocessing /
     /// compilation happens. Does nothing by default.
-    fn init(&self, input: InitInput) -> InitResult {
+    fn init(&self, _input: InitInput) -> InitResult {
         return Ok(());
     }
 
@@ -85,7 +85,7 @@ pub trait Interface {
     fn intern(&self, input: InternInput) -> InternResult;
 }
 
-
+/// Get the interface associated with NAME.
 pub fn get_interface(name: &str) -> Arc<dyn Interface + Send + Sync> {
     match name {
         "si" => {
