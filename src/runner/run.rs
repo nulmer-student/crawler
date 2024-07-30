@@ -10,6 +10,7 @@ use sqlx::{self, Any};
 use log::{info, error};
 use crossbeam::sync::WaitGroup;
 use std::sync::mpsc;
+use std::time::Instant;
 
 // =============================================================================
 // Top-Level Runner
@@ -88,12 +89,13 @@ struct Runner<'a> {
     pool: &'a ThreadPool,
     db: &'a db::Database,
     repo: RepoData,
+    start: Instant,
 }
 
 impl<'a> Runner<'a> {
     /// Create a new runner
     pub fn new(config: &'a Config, pool: &'a ThreadPool, db: &'a db::Database, repo: RepoData) -> Self {
-        return Self { config, pool, db, repo };
+        return Self { config, pool, db, repo, start: Instant::now() };
     }
 
     /// Mine this repo
@@ -168,11 +170,13 @@ impl<'a> Runner<'a> {
         }
 
         // Insert the statistics
-        let result = sqlx::query::<Any>("insert into stats values (?, ?, ?, ?, 0.0)")
+        let time = format!("{}", self.start.elapsed().as_millis());
+        let result = sqlx::query::<Any>("insert into stats values (?, ?, ?, ?, ?)")
             .bind(repo_id)
             .bind(data.n_files)
             .bind(data.n_success)
             .bind(data.n_error)
+            .bind(time)
             .execute(&self.db.pool)
             .await;
 
