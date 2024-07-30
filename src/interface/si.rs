@@ -1,6 +1,6 @@
 use super::{
-    InitInput, InitResult, CompileInput, CompileResult, Interface, InternInput,
-    InternResult, MatchData
+    InitInput, InitResult, CompileInput, CompileOutput, CompileResult, Interface,
+    InternInput, InternResult, MatchData
 };
 
 use std::{io::Write, path::PathBuf, process::{Command, Stdio}};
@@ -118,9 +118,9 @@ impl Interface for FindVectorSI {
             let result: MatchData = Box::new(Match {
                 // Return the relative path
                 file: input.file.strip_prefix(input.root).unwrap().to_path_buf(),
-                output,
+                output: output.clone(),
             });
-            return Ok(result);
+            return Ok(CompileOutput { data: result, to_log: output });
         }
 
         // Otherwise, error out
@@ -203,6 +203,7 @@ async fn file_id(pool: &mut Transaction<'_, Any>, file: &PathBuf, repo: i64) -> 
     }
 }
 
+/// Ensure that the given file exists in the database.
 async fn ensure_file(conn: &mut Transaction<'_, Any>, file: &PathBuf, repo: i64) -> Result<i64, sqlx::Error> {
     match file_id(conn, file, repo).await {
         Some(id) => {
@@ -223,6 +224,7 @@ async fn ensure_file(conn: &mut Transaction<'_, Any>, file: &PathBuf, repo: i64)
     }
 }
 
+/// Insert a match into the database.
 async fn insert_match(pool: &mut Transaction<'_, Any>, file_id: i64, args: &[i64; 5]) -> Result<(), sqlx::Error> {
     sqlx::query::<Any>(
         "insert into matches values (uuid_short(), ?, ?, ?, ?, ?, ?)"

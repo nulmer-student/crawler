@@ -2,7 +2,9 @@ use super::dep_graph::DepGraph;
 use super::select::Selector;
 use super::types::{Declare, File};
 use crate::config::Config;
-use crate::interface::{CompileInput, CompileResult, Interface, MatchData, PreInput};
+use crate::interface::{
+    CompileInput, CompileResult, CompileOutput, Interface, MatchData, PreInput
+};
 
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -42,7 +44,7 @@ impl<'a> Compiler<'a> {
     }
 
     /// Try possible header combinations.
-    pub fn run(&mut self) -> Result<MatchData, String> {
+    pub fn run(&mut self) -> Result<CompileOutput, String> {
         // Preprocess the source file
         let input = PreInput {
             config: self.config,

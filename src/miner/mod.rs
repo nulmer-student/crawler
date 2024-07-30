@@ -9,10 +9,12 @@ use dep_graph::DepGraph;
 use crate::config::Config;
 use crate::interface::{self, MatchData};
 
+use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
-use std::sync::mpsc;
+use std::sync::{Arc, Mutex, mpsc};
 use rayon::prelude::*;
-use log::{debug, info};
+use log::{debug, info, error};
 
 pub struct MineResult {
     pub data: Vec<MatchData>,
@@ -24,12 +26,25 @@ pub struct MineResult {
 /// Build a dependency graph of the source an header files in DIRECTORY.
 ///
 /// Currently, only `*.c` and `*.h` files are supported.
-pub fn mine(directory: &PathBuf, config: Config) -> MineResult {
+pub fn mine(directory: &PathBuf, log_file: &PathBuf, config: Config) -> Result<MineResult, ()> {
     // Build the dependency graph
     let dg = DepGraph::new(directory);
 
     // Load the interface
     let interface = interface::get_interface(&config.interface.name);
+
+    // Open the log file
+    let mut log = match fs::OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(log_file) {
+        Ok(f) => f,
+        Err(e) => {
+            error!("Failed to open log file: {:?}", e);
+            return Err(());
+        },
+    };
+    let log = Arc::new(Mutex::new(log));
 
     // Count the number of files that fail
     let total: i64 = dg.source_files().len() as i64;
@@ -60,21 +75,28 @@ pub fn mine(directory: &PathBuf, config: Config) -> MineResult {
                 },
             };
 
+            // Send the compiler output
+            if let Some(out) = &result {
+                let mut outfile = log.lock().unwrap();
+                outfile.write_all(out.to_log.as_bytes()).unwrap();
+            }
+
             drop(tx);
             return result;
-         }).collect();
+         }).map(|r| r.data)
+           .collect();
 
     // Gather the counts
     drop(tx);
     let success: i64 = rx.iter().sum();
     info!("Results: total: {}, successful: {}", total, success);
 
-    return MineResult {
+    return Ok(MineResult {
         data: match_data,
         n_files: total,
         n_success: success,
         n_error: total - success,
-    };
+    });
 }
 
 /// Mine a single repository, using a dedicated thread pool.
@@ -85,5 +107,6 @@ pub fn mine_one(directory: PathBuf, config: Config) {
         .build_global()
         .expect("Failed to create miner thread pool");
 
-    mine(&directory, config);
+    let log_file = config.runner.log_dir.join("repo.log");
+    let _ = mine(&directory, &log_file, config);
 }

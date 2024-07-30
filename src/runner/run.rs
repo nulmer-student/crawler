@@ -109,16 +109,23 @@ impl<'a> Runner<'a> {
 
         let (tx, rx) = mpsc::channel::<MineResult>();
 
-        // Run the miner
+        // Run the miner using our thread pool
         if let Some(dir) = (&self.repo.dir).clone() {
+            // Get the name of the log file
+            let log_file = self.repo.name.replace("/", "-");
+            let log_file = format!("{}-{}.log", self.repo.id, log_file);
+            let log_path = self.config.runner.log_dir.join(log_file);
+
             let config = self.config.clone();
             let wg = wg.clone();
             self.pool.spawn(move || {
-                let result = mine(&dir, config);
-                match tx.send(result) {
-                    Ok(_) => {},
-                    Err(e) => {
-                        error!("Failed to send match data: {}", e);
+                // Run the miner
+                if let Ok(result) = mine(&dir, &log_path, config) {
+                    match tx.send(result) {
+                        Ok(_) => {},
+                        Err(e) => {
+                            error!("Failed to send match data: {}", e);
+                        }
                     }
                 }
                 drop(wg);
