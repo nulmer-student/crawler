@@ -6,8 +6,9 @@ use super::{
 use std::{io::Write, path::PathBuf, process::{Command, Stdio}};
 use lazy_static::lazy_static;
 use log::{error, info};
+use rayon::result;
 use regex::Regex;
-use sqlx::{self, Pool, Row};
+use sqlx::{self, pool::PoolConnection, Pool, Row};
 use sqlx::Any;
 
 /// Communication between the compile & intern phases.
@@ -128,6 +129,17 @@ impl Interface for FindVectorSI {
     }
 
     fn intern(&self, input: InternInput) -> InternResult {
+        // Acquire a database connection
+        let mut conn = match input.db.rt.block_on(
+            async { input.db.pool.acquire().await }
+        ){
+            Ok(c) => c,
+            Err(e) => {
+                error!("Failed to acquire connection: {}", e);
+                return Err(());
+            },
+        };
+
         for m in input.data {
             if let Some(entry) = m.downcast_ref::<Match>() {
                 // Parse the output for vectorization opps
@@ -136,6 +148,8 @@ impl Interface for FindVectorSI {
                     .captures_iter(&entry.output).map(|c| c.extract::<5>())
                 {
                     info!("{:?}", args);
+                    info!("{:?}", input.db.pool);
+                    info!("{:?}", input.db.pool.num_idle());
 
                     let args: [i64; 5] = args
                         .iter()
@@ -146,12 +160,13 @@ impl Interface for FindVectorSI {
 
                     // Add the file to the files table
                     let file_id = input.db.rt.block_on(ensure_file(
-                        &input.db.pool, &entry.file, input.repo_id
+                        &mut conn, &entry.file, input.repo_id
                     ));
 
                     // Insert the match
                     match file_id {
                         Ok(id) => {
+                            info!("Found id: {}", id);
                             let r = input.db.rt.block_on(insert_match(
                                 &input.db.pool, id, &args
                             ));
@@ -167,19 +182,20 @@ impl Interface for FindVectorSI {
             }
         }
 
+        conn.detach();
         return Ok(());
     }
 }
 
 /// Get the file_id of FILE.
-async fn file_id(pool: &Pool<Any>, file: &PathBuf, repo: i64) -> Option<i64> {
+async fn file_id(pool: &mut PoolConnection<Any>, file: &PathBuf, repo: i64) -> Option<i64> {
     let row = sqlx::query::<Any>(
         "select file_id
          from files
          where repo_id = ? and path = ?"
     ).bind(repo)
      .bind(file.to_str())
-     .fetch_one(pool)
+     .fetch_one(pool.as_mut())
      .await;
 
     match row {
@@ -188,20 +204,26 @@ async fn file_id(pool: &Pool<Any>, file: &PathBuf, repo: i64) -> Option<i64> {
     }
 }
 
-async fn ensure_file(pool: &Pool<Any>, file: &PathBuf, repo: i64) -> Result<i64, sqlx::Error> {
-    match file_id(pool, file, repo).await {
-        Some(id) => Ok(id),
+async fn ensure_file(conn: &mut PoolConnection<Any>, file: &PathBuf, repo: i64) -> Result<i64, sqlx::Error> {
+    info!("ensure: a");
+    match file_id(conn, file, repo).await {
+        Some(id) => {
+            info!("ensure b");
+            Ok(id)
+        }
         None => {
+            info!("ensure c");
             // Insert the file
-            let _ = sqlx::query::<Any>(
+            sqlx::query::<Any>(
                 "insert into files values (uuid_short(), ?, ?)"
             )
                 .bind(repo)
                 .bind(file.to_str())
-                .execute(pool)
+                .execute(conn.as_mut())
                 .await?;
+            info!("ensure d");
 
-            return Ok(file_id(pool, file, repo).await.unwrap());
+            return Ok(file_id(conn, file, repo).await.unwrap());
         }
     }
 }

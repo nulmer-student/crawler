@@ -55,7 +55,7 @@ pub fn run_all(config: &Config) {
     run_pool.install(|| {
         let _ = repos.par_iter().for_each(|repo| {
             let pool = &miner_pools[current_thread_index().unwrap()];
-            let mut runner = Runner::new(config, pool, repo.clone());
+            let mut runner = Runner::new(config, pool, &db, repo.clone());
             runner.run();
         });
     })
@@ -85,13 +85,14 @@ async fn un_mined_repos(db: &db::Database) -> Result<Vec<RepoData>, sqlx::Error>
 struct Runner<'a> {
     config: &'a Config,
     pool: &'a ThreadPool,
+    db: &'a db::Database,
     repo: RepoData,
 }
 
 impl<'a> Runner<'a> {
     /// Create a new runner
-    pub fn new(config: &'a Config, pool: &'a ThreadPool, repo: RepoData) -> Self {
-        return Self { config, pool, repo };
+    pub fn new(config: &'a Config, pool: &'a ThreadPool, db: &'a db::Database, repo: RepoData) -> Self {
+        return Self { config, pool, db, repo };
     }
 
     /// Mine this repo
@@ -131,8 +132,7 @@ impl<'a> Runner<'a> {
                     config: self.config,
                     repo_id: self.repo.id,
                     data: &data,
-                    // FIXME: Only connect to the database once
-                    db: &db::Database::new(self.config),
+                    db: self.db,
                 };
 
                 // Call the user-supplied intern function
