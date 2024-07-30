@@ -6,8 +6,8 @@ use super::git::RepoData;
 
 use rayon::iter::IntoParallelRefIterator;
 use rayon::{current_thread_index, prelude::*, ThreadPool};
-use sqlx;
-use log::{info, debug, error};
+use sqlx::{self, Any};
+use log::{info, error};
 use crossbeam::sync::WaitGroup;
 use std::sync::mpsc;
 
@@ -52,6 +52,7 @@ pub fn run_all(config: &Config) {
         .collect();
 
     // Mine all repos
+    info!("Mining {} repositories", repos.len());
     run_pool.install(|| {
         let _ = repos.par_iter().for_each(|repo| {
             let pool = &miner_pools[current_thread_index().unwrap()];
@@ -147,13 +148,27 @@ impl<'a> Runner<'a> {
             },
         };
 
-        // TODO: Set this repo as mined
+        self.db.rt.block_on(self.mark_as_mined());
         info!("Finished mining: '{}'", self.repo.name);
+    }
+
+    /// Mark the current repository as mined.
+    async fn mark_as_mined(&self) {
+        let repo_id = self.repo.id;
+        let result = sqlx::query::<Any>("insert into mined values (?)")
+            .bind(repo_id)
+            .execute(&self.db.pool)
+            .await;
+
+        match result {
+            Ok(_) => {},
+            Err(e) => { error!("Failed to set repo as mined: {:?}", e) },
+        }
     }
 }
 
 impl Drop for Runner<'_> {
     fn drop(&mut self) {
-        debug!("Drop runner");
+        info!("Drop runner");
     }
 }

@@ -69,9 +69,6 @@ impl Database {
         sqlx::query(
             "create table if not exists mined (
              repo_id     int,
-             n_success   int,
-             n_error     int,
-             time        float,
              primary key (repo_id),
              foreign key (repo_id) references repos
         )"

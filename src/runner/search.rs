@@ -12,7 +12,7 @@ use reqwest::blocking::Client;
 use reqwest::header;
 use serde_json;
 use serde_json::value::Value;
-use log::{debug, info, error};
+use log::{debug, info, warn};
 
 static USER_AGENT: &str = concat!(
     env!("CARGO_PKG_NAME"),
@@ -119,7 +119,7 @@ impl<'a> Search<'a> {
                 Ok(_) => { count += 1 },
                 // FIXME: Only ignore duplicate entries
                 Err(e) => {
-                    error!("{}", e);
+                    warn!("{}", e);
                 }
             }
         }

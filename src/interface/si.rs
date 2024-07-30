@@ -5,10 +5,9 @@ use super::{
 
 use std::{io::Write, path::PathBuf, process::{Command, Stdio}};
 use lazy_static::lazy_static;
-use log::{error, info};
-use rayon::result;
+use log::error;
 use regex::Regex;
-use sqlx::{self, pool::PoolConnection, Pool, Row, Transaction};
+use sqlx::{self, Row, Transaction};
 use sqlx::Any;
 
 /// Communication between the compile & intern phases.
@@ -162,7 +161,6 @@ impl Interface for FindVectorSI {
                     // Insert the match
                     match file_id {
                         Ok(id) => {
-                            info!("Found id: {}", id);
                             let r = input.db.rt.block_on(insert_match(
                                 &mut conn, id, &args
                             ));
@@ -206,14 +204,11 @@ async fn file_id(pool: &mut Transaction<'_, Any>, file: &PathBuf, repo: i64) -> 
 }
 
 async fn ensure_file(conn: &mut Transaction<'_, Any>, file: &PathBuf, repo: i64) -> Result<i64, sqlx::Error> {
-    info!("ensure: a");
     match file_id(conn, file, repo).await {
         Some(id) => {
-            info!("ensure b");
             Ok(id)
         }
         None => {
-            info!("ensure c");
             // Insert the file
             sqlx::query::<Any>(
                 "insert into files values (uuid_short(), ?, ?)"
@@ -222,7 +217,6 @@ async fn ensure_file(conn: &mut Transaction<'_, Any>, file: &PathBuf, repo: i64)
                 .bind(file.to_str())
                 .execute(conn.as_mut())
                 .await?;
-            info!("ensure d");
 
             return Ok(file_id(conn, file, repo).await.unwrap());
         }
