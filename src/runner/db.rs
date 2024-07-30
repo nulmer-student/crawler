@@ -4,7 +4,7 @@ use tokio::runtime::Runtime;
 use sqlx::pool::Pool;
 use sqlx::Any;
 use sqlx::any::AnyPoolOptions;
-use log::{info, warn};
+use log::info;
 
 pub struct Database {
     pub rt: Runtime,
@@ -35,8 +35,7 @@ impl Database {
     async fn get_pool(config: &Config) -> Pool<Any> {
         info!("Connecting to database");
         AnyPoolOptions::new()
-            // .max_connections(config.runner.threads as u32 * 2)
-            .max_connections(50)
+            .max_connections(config.runner.threads as u32 * 2)
             .connect(&format!(
                 "mysql://{}:{}@{}/{}",
                 config.database.user,

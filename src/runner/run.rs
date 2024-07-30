@@ -1,11 +1,11 @@
 use crate::config::Config;
-use crate::interface::{get_interface, InitInput, InternInput, MatchData};
+use crate::interface::{get_interface, InitInput, InternInput};
 use crate::miner::{mine, MineResult};
 use super::db;
 use super::git::RepoData;
 
 use rayon::iter::IntoParallelRefIterator;
-use rayon::{current_thread_index, prelude::*, result, ThreadPool};
+use rayon::{current_thread_index, prelude::*, ThreadPool};
 use sqlx::{self, Any};
 use log::{info, error};
 use crossbeam::sync::WaitGroup;
