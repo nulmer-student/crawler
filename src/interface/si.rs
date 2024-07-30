@@ -8,7 +8,7 @@ use lazy_static::lazy_static;
 use log::{error, info};
 use rayon::result;
 use regex::Regex;
-use sqlx::{self, pool::PoolConnection, Pool, Row};
+use sqlx::{self, pool::PoolConnection, Pool, Row, Transaction};
 use sqlx::Any;
 
 /// Communication between the compile & intern phases.
@@ -131,7 +131,7 @@ impl Interface for FindVectorSI {
     fn intern(&self, input: InternInput) -> InternResult {
         // Acquire a database connection
         let mut conn = match input.db.rt.block_on(
-            async { input.db.pool.acquire().await }
+            async { input.db.pool.begin().await }
         ){
             Ok(c) => c,
             Err(e) => {
@@ -147,10 +147,6 @@ impl Interface for FindVectorSI {
                 for (_body, args) in pattern
                     .captures_iter(&entry.output).map(|c| c.extract::<5>())
                 {
-                    info!("{:?}", args);
-                    info!("{:?}", input.db.pool);
-                    info!("{:?}", input.db.pool.num_idle());
-
                     let args: [i64; 5] = args
                         .iter()
                         .map(|a| a.parse::<i64>().unwrap())
@@ -168,7 +164,7 @@ impl Interface for FindVectorSI {
                         Ok(id) => {
                             info!("Found id: {}", id);
                             let r = input.db.rt.block_on(insert_match(
-                                &input.db.pool, id, &args
+                                &mut conn, id, &args
                             ));
 
                             match r {
@@ -182,13 +178,18 @@ impl Interface for FindVectorSI {
             }
         }
 
-        conn.detach();
+        input.db.rt.block_on(async {
+            match conn.commit().await {
+                Ok(_) => {},
+                Err(e) => { error!("Failed to commit transaction: {:?}", e) },
+            }
+        });
         return Ok(());
     }
 }
 
 /// Get the file_id of FILE.
-async fn file_id(pool: &mut PoolConnection<Any>, file: &PathBuf, repo: i64) -> Option<i64> {
+async fn file_id(pool: &mut Transaction<'_, Any>, file: &PathBuf, repo: i64) -> Option<i64> {
     let row = sqlx::query::<Any>(
         "select file_id
          from files
@@ -204,7 +205,7 @@ async fn file_id(pool: &mut PoolConnection<Any>, file: &PathBuf, repo: i64) -> O
     }
 }
 
-async fn ensure_file(conn: &mut PoolConnection<Any>, file: &PathBuf, repo: i64) -> Result<i64, sqlx::Error> {
+async fn ensure_file(conn: &mut Transaction<'_, Any>, file: &PathBuf, repo: i64) -> Result<i64, sqlx::Error> {
     info!("ensure: a");
     match file_id(conn, file, repo).await {
         Some(id) => {
@@ -228,7 +229,7 @@ async fn ensure_file(conn: &mut PoolConnection<Any>, file: &PathBuf, repo: i64) 
     }
 }
 
-async fn insert_match(pool: &Pool<Any>, file_id: i64, args: &[i64; 5]) -> Result<(), sqlx::Error> {
+async fn insert_match(pool: &mut Transaction<'_, Any>, file_id: i64, args: &[i64; 5]) -> Result<(), sqlx::Error> {
     sqlx::query::<Any>(
         "insert into matches values (uuid_short(), ?, ?, ?, ?, ?, ?)"
     ).bind(file_id)
@@ -237,7 +238,7 @@ async fn insert_match(pool: &Pool<Any>, file_id: i64, args: &[i64; 5]) -> Result
      .bind(args[2])
      .bind(args[3])
      .bind(args[4])
-     .execute(pool)
+     .execute(pool.as_mut())
      .await?;
 
     return Ok(());
