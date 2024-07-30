@@ -74,6 +74,18 @@ impl Database {
         )"
         ).execute(&self.pool).await?;
 
+        sqlx::query(
+            "create table if not exists stats (
+             repo_id     int,
+             n_files     int,
+             n_success   int,
+             n_error     int,
+             time        float,
+             primary key (repo_id),
+             foreign key (repo_id) references repos
+        )"
+        ).execute(&self.pool).await?;
+
         return Ok(());
     }
 }

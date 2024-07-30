@@ -14,10 +14,17 @@ use std::sync::mpsc;
 use rayon::prelude::*;
 use log::{debug, info};
 
+pub struct MineResult {
+    pub data: Vec<MatchData>,
+    pub n_files: i64,
+    pub n_success: i64,
+    pub n_error: i64,
+}
+
 /// Build a dependency graph of the source an header files in DIRECTORY.
 ///
 /// Currently, only `*.c` and `*.h` files are supported.
-pub fn mine(directory: &PathBuf, config: Config) -> Vec<MatchData> {
+pub fn mine(directory: &PathBuf, config: Config) -> MineResult {
     // Build the dependency graph
     let dg = DepGraph::new(directory);
 
@@ -25,7 +32,7 @@ pub fn mine(directory: &PathBuf, config: Config) -> Vec<MatchData> {
     let interface = interface::get_interface(&config.interface.name);
 
     // Count the number of files that fail
-    let total = dg.source_files().len();
+    let total: i64 = dg.source_files().len() as i64;
     let (tx, rx) = mpsc::channel::<i64>();
 
     // Compile each file
@@ -62,7 +69,12 @@ pub fn mine(directory: &PathBuf, config: Config) -> Vec<MatchData> {
     let success: i64 = rx.iter().sum();
     info!("Results: total: {}, successful: {}", total, success);
 
-    return match_data;
+    return MineResult {
+        data: match_data,
+        n_files: total,
+        n_success: success,
+        n_error: total - success,
+    };
 }
 
 /// Mine a single repository, using a dedicated thread pool.

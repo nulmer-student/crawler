@@ -1,11 +1,11 @@
 use crate::config::Config;
 use crate::interface::{get_interface, InitInput, InternInput, MatchData};
-use crate::miner::mine;
+use crate::miner::{mine, MineResult};
 use super::db;
 use super::git::RepoData;
 
 use rayon::iter::IntoParallelRefIterator;
-use rayon::{current_thread_index, prelude::*, ThreadPool};
+use rayon::{current_thread_index, prelude::*, result, ThreadPool};
 use sqlx::{self, Any};
 use log::{info, error};
 use crossbeam::sync::WaitGroup;
@@ -105,15 +105,15 @@ impl<'a> Runner<'a> {
         // deletes the repo before we have mined it.
         let wg = WaitGroup::new();
 
-        let (tx, rx) = mpsc::channel::<Vec<MatchData>>();
+        let (tx, rx) = mpsc::channel::<MineResult>();
 
         // Run the miner
         if let Some(dir) = (&self.repo.dir).clone() {
             let config = self.config.clone();
             let wg = wg.clone();
             self.pool.spawn(move || {
-                let data = mine(&dir, config);
-                match tx.send(data) {
+                let result = mine(&dir, config);
+                match tx.send(result) {
                     Ok(_) => {},
                     Err(e) => {
                         error!("Failed to send match data: {}", e);
@@ -125,35 +125,37 @@ impl<'a> Runner<'a> {
         wg.wait();
 
         // Add any matches
-        match rx.try_recv() {
-            Ok(data) => {
-                // Setup the input
-                info!("Interning results");
-                let input = InternInput {
-                    config: self.config,
-                    repo_id: self.repo.id,
-                    data: &data,
-                    db: self.db,
-                };
-
-                // Call the user-supplied intern function
-                let interface = get_interface(&self.config.interface.name);
-                match interface.intern(input) {
-                    Ok(_) => {},
-                    Err(e) => error!("Failed to intern: {:?}", e),
-                }
-            },
+        let result = match rx.try_recv() {
+            Ok(r) => r,
             Err(e) => {
-                error!("Failed to receive match data: {}", e);
-            },
+                error!("Failed to receive match data: {:?}", e);
+                return;
+            }
         };
 
-        self.db.rt.block_on(self.mark_as_mined());
+        // Setup the input
+        info!("Interning results");
+        let input = InternInput {
+            config: self.config,
+            repo_id: self.repo.id,
+            data: &result.data,
+            db: self.db,
+        };
+
+        // Call the user-supplied intern function
+        let interface = get_interface(&self.config.interface.name);
+        match interface.intern(input) {
+            Ok(_) => {},
+            Err(e) => error!("Failed to intern: {:?}", e),
+        }
+
+        self.db.rt.block_on(self.mark_as_mined(&result));
         info!("Finished mining: '{}'", self.repo.name);
     }
 
     /// Mark the current repository as mined.
-    async fn mark_as_mined(&self) {
+    async fn mark_as_mined(&self, data: &MineResult) {
+        // Set as mined
         let repo_id = self.repo.id;
         let result = sqlx::query::<Any>("insert into mined values (?)")
             .bind(repo_id)
@@ -163,6 +165,20 @@ impl<'a> Runner<'a> {
         match result {
             Ok(_) => {},
             Err(e) => { error!("Failed to set repo as mined: {:?}", e) },
+        }
+
+        // Insert the statistics
+        let result = sqlx::query::<Any>("insert into stats values (?, ?, ?, ?, 0.0)")
+            .bind(repo_id)
+            .bind(data.n_files)
+            .bind(data.n_success)
+            .bind(data.n_error)
+            .execute(&self.db.pool)
+            .await;
+
+        match result {
+            Ok(_) => {},
+            Err(e) => { error!("Failed to add statistics: {:?}", e) },
         }
     }
 }
