@@ -1,0 +1,22 @@
+[interface]
+name            = "si"
+args            = { clang = "/path/to/cost/model/clang" }
+
+[miner]
+threads         = 1
+tries           = 10
+
+[runner]
+threads         = 8
+min_stars       = 500
+languages       = ["c"]
+# github_api_key  = "API_KEY"
+log_level       = "info"
+log_dir         = "./si-log"
+tmp_dir         = "/tmp/crawler"
+
+[database]
+user            = "db_user"
+password        = ""
+host            = "db_host"
+database        = "db_name"
