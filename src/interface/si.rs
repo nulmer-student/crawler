@@ -129,8 +129,9 @@ impl Interface for FindVectorSI {
             .collect();
 
         // Compilation command
-        let mut cmd = Command::new(clang);
-        let mut compile = cmd
+        let mut compile = Command::new("timeout")
+            .arg("5")
+            .arg(clang)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -182,6 +183,13 @@ impl Interface for FindVectorSI {
             });
             log.push_str("success\n");
             return CompileResult { data: Ok(result), to_log: log };
+        }
+
+        // If the compilation timed out, print so
+        if let Some(code) = out.status.code() {
+            if code == 124 {
+                log.push_str("timed out\n");
+            }
         }
 
         // Otherwise, error out
