@@ -37,8 +37,8 @@ cargo run -- config.toml crawl
 
 The behaviour of the crawler is modified through the use of a configuration
 file.
-A sample configuration file for the `si` interface can be found at
-`example-config.toml`.
+A sample configuration file for the `si` interface can be found
+[here](example-config.toml). 
 The fields of the configuration file have the following meanings:
 
 - Interface
@@ -59,6 +59,7 @@ The fields of the configuration file have the following meanings:
   - `user`: Database user.
   - `password`: Database password. Leave blank if none.
   - `host`: Database host.
-  - `database`: Which database to use on the host.
+  - `database`: Database to use on the host.
 
 ## Writing Your Own Interface
+
