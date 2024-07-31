@@ -1,9 +1,10 @@
 use super::{
     InitInput, InitResult, CompileInput, CompileResult, Interface,
-    InternInput, InternResult, MatchData
+    InternInput, InternResult, MatchData, PreInput, PreprocessResult
 };
 
 use std::{io::Write, path::PathBuf, process::{Command, Stdio}};
+use std::fs;
 use lazy_static::lazy_static;
 use log::error;
 use regex::Regex;
@@ -26,6 +27,12 @@ lazy_static! {
         pattern.push_str(r" scalar interpolation count: (\d+)");
         pattern.push_str(r"\)");
         Regex::new(&pattern).unwrap()
+    };
+}
+
+lazy_static! {
+    static ref LOOP_PATTERN: Regex = {
+        Regex::new(r"\s*\bfor\s*\(").unwrap()
     };
 }
 
@@ -68,6 +75,38 @@ impl Interface for FindVectorSI {
             Ok(_) => { return Ok(()); },
             Err(e) => { return Err(e.to_string()); },
         }
+    }
+
+    // =========================================================================
+    // Preprocess
+    // =========================================================================
+    fn preprocess(&self, input: PreInput) -> PreprocessResult {
+        let mut acc = "".to_string();
+
+        // Read in the file
+        let contents = match fs::read_to_string(input.file) {
+            Ok(s) => s,
+            Err(e) => {
+                error!("Failed to read file: {:?}", e);
+                return Err(());
+            },
+        };
+
+        // Insert the pragma before each for loop
+        let pragma = "#pragma clang loop scalar_interpolation(enable)\n";
+        let pattern = &LOOP_PATTERN;
+        for line in contents.lines() {
+            // If this line starts a for loop, insert the pragma
+            if pattern.is_match(line) {
+                acc.push_str(pragma);
+            }
+
+            // Add the line
+            acc.push_str(line);
+            acc.push('\n');
+        }
+
+        return Ok(acc);
     }
 
     // =========================================================================
