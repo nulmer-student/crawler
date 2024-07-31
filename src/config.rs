@@ -1,8 +1,10 @@
 use std::fs;
 use std::path::PathBuf;
 use std::collections::{HashSet, HashMap};
+use std::time::SystemTime;
 use lazy_static::lazy_static;
 use serde::Deserialize;
+use chrono::Local;
 
 lazy_static! {
     static ref LANGS: HashSet<String> = {
@@ -61,7 +63,7 @@ pub fn read_config(path: PathBuf) -> Config {
     let str = fs::read_to_string(path).expect("Unable to read config");
 
     // Load the config
-    let config: Config = match toml::from_str(&str) {
+    let mut config: Config = match toml::from_str(&str) {
         Ok(c) => c,
         Err(e) => panic!("Failed to parse config: {}", e),
     };
@@ -71,6 +73,11 @@ pub fn read_config(path: PathBuf) -> Config {
     if !languages.is_subset(&LANGS) {
         panic!("Invalid language: {:?}", languages.difference(&LANGS))
     }
+
+    // Set the log directory based on the time
+    let now = Local::now();
+    let sub_dir = format!("{:?}", now);
+    config.runner.log_dir = config.runner.log_dir.join(sub_dir);
 
     return config;
 }
