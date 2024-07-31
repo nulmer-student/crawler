@@ -107,7 +107,7 @@ impl Interface for FindVectorSI {
             .unwrap();
 
         // Log the command used
-        log.push_str("==============================\n");
+        log.push_str("\n==============================\n");
         log.push_str(
             &format!("Try for file {:?}:\nHeaders: {:?}", input.file, input.headers)
         );
@@ -123,13 +123,15 @@ impl Interface for FindVectorSI {
         // Get the output as a string
         let output = match String::from_utf8(out.stderr) {
             Ok(o) => o,
-            Err(e) =>  {
+            Err(e) => {
                 error!("Failed to read match data: {}", e);
                 return CompileResult { data: Err(()), to_log: "".to_string() };
             },
         };
         log.push_str("\nOutput:\n");
+        log.push_str("------------------------------\n");
         log.push_str(&output);
+        log.push_str("------------------------------\n");
 
         // If the compilation was successful, return the stderr
         if out.status.success() {
@@ -139,10 +141,12 @@ impl Interface for FindVectorSI {
                 file: input.file.strip_prefix(input.root).unwrap().to_path_buf(),
                 output,
             });
+            log.push_str("success\n");
             return CompileResult { data: Ok(result), to_log: log };
         }
 
         // Otherwise, error out
+        log.push_str("failed\n");
         return CompileResult { data: Err(()), to_log: log };
     }
 
