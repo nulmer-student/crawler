@@ -17,7 +17,7 @@ After cloning the repository, run the following command to build the crawler.
 cargo build
 ```
 
-## Example Command Line Usage
+## Command Line Usage
 
 The following examples assume you have a valid config located at `config.toml`.
 Mine a repository on disk with the following command:
@@ -63,3 +63,14 @@ The fields of the configuration file have the following meanings:
 
 ## Writing Your Own Interface
 
+The user supplied mining code is written as a trait object with the following methods:
+
+- `init()`: Called once before any repositories are mined. Does nothing by default.
+- `preprocess()`: Called once for each file, with the result being using for all further compilations. Loads the file verbatim by default.
+- `compile()`: Called for each file with each header combination. Results are collected and passed to the `intern()` method.
+- `intern()`: Called after all compilation has finished on the results of all `compile()` calls.
+
+Only the `compile()` and `intern()` methods are required.
+The definition of the interface can be found in
+[`src/interface/mod.rs`](src/interface/mod.rs), and an example implementation
+can be found at [`src/interface/si.rs`](src/interface/si.rs).
