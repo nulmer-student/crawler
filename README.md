@@ -74,3 +74,25 @@ Only the `compile()` and `intern()` methods are required.
 The definition of the interface can be found in
 [`src/interface/mod.rs`](src/interface/mod.rs), and an example implementation
 can be found at [`src/interface/si.rs`](src/interface/si.rs).
+
+
+## Structure of the Database
+
+The database contains a number of tables by default:
+
+- The `repos` table contains all repositories that match the search criteria.
+  - `repo_id`: Unique integer identifier for each repository.
+  - `name`: Human readable repository name. For example "nulmer-student/crawler".
+  - `clone_url`: URL used to clone the repository.
+  - `stars`: Repository star-count.
+
+- The `mined` table contains the id's of repositories that have been successfully mined.
+  - `repo_id`: Unique id of the repository.
+
+- The `stats` table contains statistics about each mined repository.
+  - `repo_id`: Unique id of the repository.
+  - `n_files`: Number of source files mined in the repository.
+  - `n_success`: Number of successfully compiled source files.
+  - `n_errors`: Number of source files that failed to compile.
+  - `time`: Time taken to mine this repository in milliseconds.
+
