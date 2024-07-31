@@ -43,12 +43,10 @@ pub struct CompileInput<'a> {
     pub headers: &'a Vec<PathBuf>   // Header choices
 }
 
-pub struct CompileOutput {
-    pub data: MatchData,            // Instance specific match data
-    pub to_log: String,             // Data to output to this repositories log
+pub struct CompileResult {
+    pub data: Result<MatchData, ()>,    // Instance specific match data
+    pub to_log: String,                 // Data to output to the current repositories log
 }
-
-pub type CompileResult = Result<CompileOutput, ()>;
 
 // Intern:
 

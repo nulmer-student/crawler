@@ -34,7 +34,7 @@ pub fn mine(directory: &PathBuf, log_file: &PathBuf, config: Config) -> Result<M
     let interface = interface::get_interface(&config.interface.name);
 
     // Open the log file
-    let mut log = match fs::OpenOptions::new()
+    let log = match fs::OpenOptions::new()
         .append(true)
         .create(true)
         .open(log_file) {
@@ -76,21 +76,21 @@ pub fn mine(directory: &PathBuf, log_file: &PathBuf, config: Config) -> Result<M
             };
 
             // Send the compiler output
-            if let Some(out) = &result {
+            {
                 let mut outfile = log.lock().unwrap();
-                outfile.write_all(out.to_log.as_bytes()).unwrap();
+                outfile.write_all(compiler.get_log().as_bytes()).unwrap();
             }
 
             drop(tx);
             return result;
-         }).map(|r| r.data)
-           .collect();
+         }).collect();
 
     // Gather the counts
     drop(tx);
     let success: i64 = rx.iter().sum();
     info!("Results: total: {}, successful: {}", total, success);
 
+    drop(log);
     return Ok(MineResult {
         data: match_data,
         n_files: total,

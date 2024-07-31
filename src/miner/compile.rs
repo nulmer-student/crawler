@@ -3,7 +3,7 @@ use super::select::Selector;
 use super::types::{Declare, File};
 use crate::config::Config;
 use crate::interface::{
-    CompileInput, CompileResult, CompileOutput, Interface, MatchData, PreInput
+    CompileInput, CompileResult, Interface, MatchData, PreInput
 };
 
 use std::collections::HashSet;
@@ -24,6 +24,9 @@ pub struct Compiler<'a> {
     // Header selection
     selector: Selector<'a>,
     tried: HashSet<Vec<PathBuf>>,
+
+    // Log data
+    log_data: String,
 }
 
 impl<'a> Compiler<'a> {
@@ -40,11 +43,16 @@ impl<'a> Compiler<'a> {
         let selector = Selector::new(file.clone(), dg, config);
         let tried = HashSet::new();
 
-        return Self { config, interface, root_dir, file, selector, tried };
+        // Start out with an empty log
+        let log_data = "".to_string();
+
+        return Self {
+            config, interface, root_dir, file, selector, tried, log_data
+        };
     }
 
     /// Try possible header combinations.
-    pub fn run(&mut self) -> Result<CompileOutput, String> {
+    pub fn run(&mut self) -> Result<MatchData, String> {
         // Preprocess the source file
         let input = PreInput {
             config: self.config,
@@ -77,7 +85,11 @@ impl<'a> Compiler<'a> {
             self.tried.insert(headers.clone());
 
             // Try to compile
-            match self.try_compile(&source, headers) {
+            let result = self.try_compile(&source, headers);
+            self.log(&result.to_log);
+
+            // Exit if we have succeeded, keep trying otherwise
+            match result.data {
                 Ok(s) => {
                     return Ok(s);
                 },
@@ -151,5 +163,14 @@ impl<'a> Compiler<'a> {
     /// Return the full path of the current file.
     fn file_full(&self) -> PathBuf {
         return self.root_dir.join(self.file.path());
+    }
+
+    /// Add the input string to the log.
+    fn log(&mut self, input: &str) {
+        self.log_data.push_str(input);
+    }
+
+    pub fn get_log(&self) -> &str {
+        return &self.log_data;
     }
 }

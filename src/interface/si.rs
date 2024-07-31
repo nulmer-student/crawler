@@ -1,5 +1,5 @@
 use super::{
-    InitInput, InitResult, CompileInput, CompileOutput, CompileResult, Interface,
+    InitInput, InitResult, CompileInput, CompileResult, Interface,
     InternInput, InternResult, MatchData
 };
 
@@ -32,6 +32,10 @@ lazy_static! {
 pub struct FindVectorSI {}
 
 impl Interface for FindVectorSI {
+    // =========================================================================
+    // Init
+    // =========================================================================
+
     /// Create new tables to store the files & matches.
     fn init(&self, input: InitInput) -> InitResult {
         let result: Result<(), sqlx::Error> = input.db.rt.block_on(async {
@@ -66,8 +70,15 @@ impl Interface for FindVectorSI {
         }
     }
 
+    // =========================================================================
+    // Compile
+    // =========================================================================
+
     /// Compile a single file using SI cost model.
     fn compile(&self, input: CompileInput) -> CompileResult {
+        // Log output
+        let mut log = "".to_string();
+
         // Get the path to clang from the args
         let clang = &input.config.interface.args["clang"];
 
@@ -95,6 +106,12 @@ impl Interface for FindVectorSI {
             .spawn()
             .unwrap();
 
+        // Log the command used
+        log.push_str("==============================\n");
+        log.push_str(
+            &format!("Try for file {:?}:\nHeaders: {:?}", input.file, input.headers)
+        );
+
         // Send the input source file
         let mut stdin = compile.stdin.take().unwrap();
         stdin.write_all(input.content.as_bytes()).unwrap();
@@ -103,29 +120,35 @@ impl Interface for FindVectorSI {
         // Get the compilation output
         let out = compile.wait_with_output().unwrap();
 
+        // Get the output as a string
+        let output = match String::from_utf8(out.stderr) {
+            Ok(o) => o,
+            Err(e) =>  {
+                error!("Failed to read match data: {}", e);
+                return CompileResult { data: Err(()), to_log: "".to_string() };
+            },
+        };
+        log.push_str("\nOutput:\n");
+        log.push_str(&output);
+
         // If the compilation was successful, return the stderr
         if out.status.success() {
-            // Get the output as a string
-            let output = match String::from_utf8(out.stderr) {
-                Ok(o) => o,
-                Err(e) =>  {
-                    error!("Failed to read match data: {}", e);
-                    return Err(());
-                },
-            };
-
             // Return the result
             let result: MatchData = Box::new(Match {
                 // Return the relative path
                 file: input.file.strip_prefix(input.root).unwrap().to_path_buf(),
-                output: output.clone(),
+                output,
             });
-            return Ok(CompileOutput { data: result, to_log: output });
+            return CompileResult { data: Ok(result), to_log: log };
         }
 
         // Otherwise, error out
-        return Err(());
+        return CompileResult { data: Err(()), to_log: log };
     }
+
+    // =========================================================================
+    // Intern
+    // =========================================================================
 
     fn intern(&self, input: InternInput) -> InternResult {
         // Acquire a database connection
