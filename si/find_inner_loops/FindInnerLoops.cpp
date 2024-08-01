@@ -1,5 +1,6 @@
 #include "FindInnerLoops.h"
 
+#include <llvm/Analysis/LoopInfo.h>
 #include <llvm/IR/Module.h>
 #include <vector>
 
@@ -20,6 +21,35 @@ AnalysisKey InnerLoopPass::Key;
 
 InnerLoopPass::Result InnerLoopPass::run(Module &M, ModuleAnalysisManager &MAM) {
   Result Loops;
+
+  // Get a function analysis manager
+  FunctionAnalysisManager &FAM =
+      MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
+
+  // Loop over each basic block
+  for (auto &Fn : M) {
+    for (auto &BB : Fn) {
+      auto &LoopInfo = FAM.getResult<LoopAnalysis>(Fn);
+      Loop *L = LoopInfo.getLoopFor(&BB);
+
+      // Basic block is not in a loop
+      if (L == nullptr)
+        continue;
+
+      // Basic block is not the loop header
+      if (!LoopInfo.isLoopHeader(&BB))
+        continue;
+
+      // Loop is not an intermost loop
+      if (!L->isInnermost())
+        continue;
+
+      // Add the location of the first instruction
+      DebugLoc Loc = BB.getFirstNonPHI()->getDebugLoc();
+      Loops.push_back(Loc);
+    }
+  }
+
   return Loops;
 }
 
@@ -31,7 +61,10 @@ PreservedAnalyses InnerLoopPassPrinter::run(Module &M, ModuleAnalysisManager &MA
   // Get the results of the loop finder pass
   auto Results = MAM.getResult<InnerLoopPass>(M);
 
-  errs() << "this is a test\n";
+  // Print out the matched locations
+  for (auto &Loc : Results) {
+    errs() << Loc.getLine() << " " << Loc.getCol() << "\n";
+  }
 
   return PreservedAnalyses::all();
 }
