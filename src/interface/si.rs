@@ -3,10 +3,10 @@ use super::{
     InternInput, InternResult, MatchData, PreInput, PreprocessResult
 };
 
-use std::{io::Write, path::PathBuf, process::{Command, Stdio}};
+use std::{io::{BufRead, Write}, path::PathBuf, process::{Command, Stdio}, str::FromStr};
 use std::fs;
 use lazy_static::lazy_static;
-use log::error;
+use log::{error, info};
 use regex::Regex;
 use sqlx::{self, Row, Transaction};
 use sqlx::Any;
@@ -19,6 +19,7 @@ struct Match {
 }
 
 lazy_static! {
+    /// Parse the vectorization remark output.
     static ref MATCH_PATTERN: Regex = {
         let mut pattern = "".to_string();
         pattern.push_str(r"(\d+):(\d+): remark: vectorized loop \(");
@@ -28,21 +29,23 @@ lazy_static! {
         pattern.push_str(r"\)");
         Regex::new(&pattern).unwrap()
     };
-}
 
-lazy_static! {
+    /// Check if a contains a for loop.
     static ref LOOP_PATTERN: Regex = {
         Regex::new(r"\s*\bfor\s*\(").unwrap()
     };
 }
 
+
+static PRAGMA: &str = "#pragma clang loop scalar_interpolation(enable)\n";
+
+// =============================================================================
+// SI Interface
+// =============================================================================
+
 pub struct FindVectorSI {}
 
 impl Interface for FindVectorSI {
-    // =========================================================================
-    // Init
-    // =========================================================================
-
     /// Create new tables to store the files & matches.
     fn init(&self, input: InitInput) -> InitResult {
         let result: Result<(), sqlx::Error> = input.db.rt.block_on(async {
@@ -77,129 +80,28 @@ impl Interface for FindVectorSI {
         }
     }
 
-    // =========================================================================
-    // Preprocess
-    // =========================================================================
-    fn preprocess(&self, input: PreInput) -> PreprocessResult {
-        let mut acc = "".to_string();
-
-        // Read in the file
-        let contents = match fs::read_to_string(input.file) {
-            Ok(s) => s,
-            Err(e) => {
-                error!("Failed to read file: {:?}", e);
-                return Err(());
-            },
-        };
-
-        // Insert the pragma before each for loop
-        let pragma = "#pragma clang loop scalar_interpolation(enable)\n";
-        let pattern = &LOOP_PATTERN;
-        for line in contents.lines() {
-            // If this line starts a for loop, insert the pragma
-            if pattern.is_match(line) {
-                acc.push_str(pragma);
-            }
-
-            // Add the line
-            acc.push_str(line);
-            acc.push('\n');
-        }
-
-        return Ok(acc);
+    /// Don't use the builtin preprocess method.
+    fn preprocess(&self, _input: PreInput) -> PreprocessResult {
+        return Ok("".to_string());
     }
-
-    // =========================================================================
-    // Compile
-    // =========================================================================
 
     /// Compile a single file using SI cost model.
     fn compile(&self, input: CompileInput) -> CompileResult {
         // Log output
         let mut log = "".to_string();
 
-        // Get the path to clang from the args
-        let clang = &input.config.interface.args["clang"];
-
-        // Format the headers with "-I"
-        let headers: Vec<_> = input
-            .headers
-            .iter()
-            .map(|h| format!("-I{}", h.to_str().unwrap()))
-            .collect();
-
-        // Compilation command
-        let mut compile = Command::new("timeout")
-            .arg("5")
-            .arg(clang)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .arg("-c")
-            .args(["-x", "c"])
-            .args(headers)
-            .args(["-o", "/dev/null"])
-            .arg("-emit-llvm")
-            .arg("-O3")
-            .arg("-Rpass=loop-vectorize")
-            .arg("-")
-            .spawn()
-            .unwrap();
-
-        // Log the command used
-        log.push_str("\n==============================\n");
-        log.push_str(
-            &format!("Try for file {:?}:\nHeaders: {:?}", input.file, input.headers)
-        );
-
-        // Send the input source file
-        let mut stdin = compile.stdin.take().unwrap();
-        stdin.write_all(input.content.as_bytes()).unwrap();
-        drop(stdin);    // Blocks if we don't have this
-
-        // Get the compilation output
-        let out = compile.wait_with_output().unwrap();
-
-        // Get the output as a string
-        let output = match String::from_utf8(out.stderr) {
-            Ok(o) => o,
-            Err(e) => {
-                error!("Failed to read match data: {}", e);
-                return CompileResult { data: Err(()), to_log: "".to_string() };
-            },
-        };
-        log.push_str("\nOutput:\n");
-        log.push_str("------------------------------\n");
+        // Try to compile the file
+        let (succeed, output) = try_compile(&input);
         log.push_str(&output);
-        log.push_str("------------------------------\n");
 
-        // If the compilation was successful, return the stderr
-        if out.status.success() {
-            // Return the result
-            let result: MatchData = Box::new(Match {
-                // Return the relative path
-                file: input.file.strip_prefix(input.root).unwrap().to_path_buf(),
-                output,
-            });
-            log.push_str("success\n");
-            return CompileResult { data: Ok(result), to_log: log };
+        // Return early if the compilation failed
+        if !succeed {
+            return CompileResult { data: Err(()), to_log: log };
         }
 
-        // If the compilation timed out, print so
-        if let Some(code) = out.status.code() {
-            if code == 124 {
-                log.push_str("timed out\n");
-            }
-        }
-
-        // Otherwise, error out
-        log.push_str("failed\n");
-        return CompileResult { data: Err(()), to_log: log };
+        // If the compilation succeeded, find the matches
+        return find_match_data(&input, log);
     }
-
-    // =========================================================================
-    // Intern
-    // =========================================================================
 
     fn intern(&self, input: InternInput) -> InternResult {
         // Acquire a database connection
@@ -259,6 +161,143 @@ impl Interface for FindVectorSI {
         return Ok(());
     }
 }
+
+// =============================================================================
+// Compile
+// =============================================================================
+
+fn get_compile_bin(input: &CompileInput, bin: &str) -> PathBuf {
+    let dir = PathBuf::from_str(&input.config.interface.args["llvm"]).unwrap();
+
+    return dir.join(bin);
+}
+
+/// Format headers using the -I format.
+fn format_headers(headers: &Vec<PathBuf>) -> Vec<String> {
+    headers.iter()
+           .map(|h| format!("-I{}", h.to_str().unwrap()))
+           .collect()
+}
+
+/// Return true if the compilation succeeded, & return the output.
+fn try_compile(input: &CompileInput) -> (bool, String) {
+    // Get the path to clang from the args
+    let clang = get_compile_bin(input, "clang");
+    let headers = format_headers(input.headers);
+
+    // Run a quick compilation so we can check for errors
+    let compile = Command::new("timeout")
+        .arg("5")
+        .arg(clang)
+        .arg("-c")
+        .arg(input.file)
+        .args(headers)
+        .args(["-o", "/dev/null"])
+        .output()
+        .unwrap();
+
+    // Try to get the output
+    let output = match String::from_utf8(compile.stderr) {
+        Ok(s) => s,
+        Err(e) => {
+            error!("Failed to read compilation output for: {:?}", e);
+            "".to_string()
+        }
+    };
+
+    // Return true if the compilation succeeded
+    if compile.status.success() {
+        return (true, output);
+    }
+
+    return (false, output);
+}
+
+/// Given a successful header combination, compile the file & find matches.
+fn find_match_data(input: &CompileInput, log: String) -> CompileResult {
+    // Find the innermost loops in the file
+    let loop_lines = find_inner_loops(input);
+    info!("Loop lines: {:?}", loop_lines);
+
+    // Insert SI pragmas before the inner loops
+    let src = insert_pragma(input.file, loop_lines);
+    println!("Source: {}", src);
+
+    // Compile to find all information
+    // TODO
+    return CompileResult { data: Err(()), to_log: log };
+}
+
+/// Return a list of line numbers that define innermost loops.
+fn find_inner_loops(input: &CompileInput) -> Vec<usize> {
+    // Compile the file to LLVM IR
+    let clang = get_compile_bin(input, "clang");
+    let mut compile = Command::new(clang)
+        .stdout(Stdio::piped())
+        .arg(input.file)
+        .args(["-S", "-emit-llvm", "-g", "-o", "-"])
+        .spawn()
+        .unwrap();
+
+    // Run the loop finder
+    let loop_finder = &input.config.interface.args["loop_finder"];
+    let opt = get_compile_bin(input, "opt");
+    let find = Command::new(opt)
+        .stdin(compile.stdout.take().unwrap())
+        .arg(&format!("-load-pass-plugin={}", loop_finder))
+        .arg("-passes=print<inner-loop>")
+        .args(["-o", "/dev/null"])
+        .output()
+        .unwrap();
+
+    // Parse the results
+    let out = String::from_utf8(find.stderr)
+        .expect("Failed to parse loop finder output");
+    let lines: Vec<_> = out.lines()
+                           .map(|l| l.split(" ").collect::<Vec<_>>()[0])
+                           .map(|s| s.parse::<usize>().expect("Failed to parse integer"))
+                           .collect();
+    return lines;
+}
+
+/// Load a file into a String & insert the SI pragmas.
+fn insert_pragma(file: &PathBuf, mut pragma_lines: Vec<usize>) -> String {
+    // Load the raw file
+    let contents = fs::read_to_string(file).expect("Failed to read file");
+
+    // Ensure the pragma_lines are in sorted order
+    pragma_lines.sort();
+
+    // Load the file & insert the pragmas where needed
+    let mut acc = "".to_string();
+    let mut pragma_i = 0;
+    for (i, line) in contents.lines().enumerate() {
+        let i = i + 1; // Loop finder uses 1-based indexing
+
+        // Check if this line needs a pragma
+        if let Some(pragma_line) = pragma_lines.get(pragma_i) {
+            if *pragma_line == i && is_for_loop(line) {
+                acc.push_str(PRAGMA);
+                pragma_i += 1;
+            }
+        }
+
+        // Add the line
+        acc.push_str(line);
+        acc.push('\n');
+    }
+
+    return acc;
+}
+
+/// Check if a string contains a definition of a for loop.
+fn is_for_loop(str: &str) -> bool {
+    return LOOP_PATTERN.is_match(str);
+}
+
+// =============================================================================
+// Intern
+// =============================================================================
 
 /// Get the file_id of FILE.
 async fn file_id(pool: &mut Transaction<'_, Any>, file: &PathBuf, repo: i64) -> Option<i64> {
