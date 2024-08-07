@@ -32,7 +32,7 @@ lazy_static! {
 
     /// Check if a contains a for loop.
     static ref LOOP_PATTERN: Regex = {
-        Regex::new(r"\s*\bfor\s*\(").unwrap()
+        Regex::new(r"for").unwrap()
     };
 }
 
@@ -217,15 +217,12 @@ fn try_compile(input: &CompileInput) -> (bool, String) {
 fn find_match_data(input: &CompileInput, log: String) -> CompileResult {
     // Find the innermost loops in the file
     let loop_lines = find_inner_loops(input);
-    info!("Loop lines: {:?}", loop_lines);
 
     // Insert SI pragmas before the inner loops
     let src = insert_pragma(input.file, loop_lines);
-    println!("Source: {}", src);
 
     // Compile to find all information
-    // TODO
-    return CompileResult { data: Err(()), to_log: log };
+    return find_matches(input, src, log);
 }
 
 /// Return a list of line numbers that define innermost loops.
@@ -255,7 +252,8 @@ fn find_inner_loops(input: &CompileInput) -> Vec<usize> {
         .expect("Failed to parse loop finder output");
     let lines: Vec<_> = out.lines()
                            .map(|l| l.split(" ").collect::<Vec<_>>()[0])
-                           .map(|s| s.parse::<usize>().expect("Failed to parse integer"))
+                           .map(|s| s.parse::<usize>()
+                                .expect("Failed to parse integer"))
                            .collect();
     return lines;
 }
@@ -276,9 +274,11 @@ fn insert_pragma(file: &PathBuf, mut pragma_lines: Vec<usize>) -> String {
 
         // Check if this line needs a pragma
         if let Some(pragma_line) = pragma_lines.get(pragma_i) {
-            if *pragma_line == i && is_for_loop(line) {
-                acc.push_str(PRAGMA);
+            if *pragma_line == i {
                 pragma_i += 1;
+                if is_for_loop(line) {
+                    acc.push_str(PRAGMA);
+                }
             }
         }
 
@@ -290,9 +290,14 @@ fn insert_pragma(file: &PathBuf, mut pragma_lines: Vec<usize>) -> String {
     return acc;
 }
 
-/// Check if a string contains a definition of a for loop.
+/// Check if the given string contains a definition for a "for" loop.
 fn is_for_loop(str: &str) -> bool {
     return LOOP_PATTERN.is_match(str);
+}
+
+/// Find the SI data for a given file.
+fn find_matches(input: &CompileInput, src: String, log: String) -> CompileResult {
+    return CompileResult { data: Err(()), to_log: log };
 }
 
 // =============================================================================
