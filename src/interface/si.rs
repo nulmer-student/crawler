@@ -265,6 +265,8 @@ fn find_inner_loops(input: &CompileInput) -> Vec<usize> {
         .output()
         .unwrap();
 
+    let _ = compile.wait();
+
     // Parse the results
     let out = String::from_utf8(find.stderr)
         .expect("Failed to parse loop finder output");
@@ -316,7 +318,7 @@ fn is_for_loop(str: &str) -> bool {
 /// Find the SI data for a given file.
 fn find_matches(input: &CompileInput, src: String, log: &mut String) -> CompileResult {
     let mut compile = Command::new("timeout")
-        .arg("20")
+        .arg("10")
         .arg(get_compile_bin(input, "clang"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
