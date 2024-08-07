@@ -90,17 +90,13 @@ impl Interface for FindVectorSI {
         // Log output
         let mut log = "".to_string();
 
-        // Try to compile the file
-        let (succeed, output) = try_compile(&input);
-        log.push_str(&output);
-
-        // Return early if the compilation failed
-        if !succeed {
+        // Try to compile the file & return if it fails
+        if !try_compile(&input, &mut log) {
             return CompileResult { data: Err(()), to_log: log };
         }
 
         // If the compilation succeeded, find the matches
-        return find_match_data(&input, log);
+        return find_match_data(&input, &mut log);
     }
 
     fn intern(&self, input: InternInput) -> InternResult {
@@ -180,7 +176,7 @@ fn format_headers(headers: &Vec<PathBuf>) -> Vec<String> {
 }
 
 /// Return true if the compilation succeeded, & return the output.
-fn try_compile(input: &CompileInput) -> (bool, String) {
+fn try_compile(input: &CompileInput, log: &mut String) -> bool {
     // Get the path to clang from the args
     let clang = get_compile_bin(input, "clang");
     let headers = format_headers(input.headers);
@@ -196,6 +192,12 @@ fn try_compile(input: &CompileInput) -> (bool, String) {
         .output()
         .unwrap();
 
+    // Log the command used
+    log.push_str("\n==============================\n");
+    log.push_str(
+        &format!("Try for file {:?}:\nHeaders: {:?}", input.file, input.headers)
+    );
+
     // Try to get the output
     let output = match String::from_utf8(compile.stderr) {
         Ok(s) => s,
@@ -204,17 +206,31 @@ fn try_compile(input: &CompileInput) -> (bool, String) {
             "".to_string()
         }
     };
+    log.push_str("\nOutput:\n");
+    log.push_str("------------------------------\n");
+    log.push_str(&output);
+    log.push_str("------------------------------\n");
 
-    // Return true if the compilation succeeded
-    if compile.status.success() {
-        return (true, output);
+    // If the compilation timed out, print so
+    if let Some(code) = compile.status.code() {
+        if code == 124 {
+            log.push_str("timed out\n");
+        }
     }
 
-    return (false, output);
+    // Return true if the compilation succeeded
+    let result = compile.status.success();
+    if result {
+        log.push_str("success\n")
+    } else {
+        log.push_str("failed\n")
+    }
+
+    return result;
 }
 
 /// Given a successful header combination, compile the file & find matches.
-fn find_match_data(input: &CompileInput, log: String) -> CompileResult {
+fn find_match_data(input: &CompileInput, log: &mut String) -> CompileResult {
     // Find the innermost loops in the file
     let loop_lines = find_inner_loops(input);
 
@@ -231,7 +247,9 @@ fn find_inner_loops(input: &CompileInput) -> Vec<usize> {
     let clang = get_compile_bin(input, "clang");
     let mut compile = Command::new(clang)
         .stdout(Stdio::piped())
+        .arg("-c")
         .arg(input.file)
+        .args(format_headers(input.headers))
         .args(["-S", "-emit-llvm", "-g", "-o", "-"])
         .spawn()
         .unwrap();
@@ -296,8 +314,71 @@ fn is_for_loop(str: &str) -> bool {
 }
 
 /// Find the SI data for a given file.
-fn find_matches(input: &CompileInput, src: String, log: String) -> CompileResult {
-    return CompileResult { data: Err(()), to_log: log };
+fn find_matches(input: &CompileInput, src: String, log: &mut String) -> CompileResult {
+    let mut compile = Command::new("timeout")
+        .arg("20")
+        .arg(get_compile_bin(input, "clang"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .args(["-c", "-x", "c"])
+        .args(format_headers(input.headers))
+        .args(["-o", "/dev/null"])
+        .args(["-emit-llvm", "-O3", "-Rpass=loop-vectorize"])
+        .arg("-")
+        .spawn()
+        .unwrap();
+
+    // Log the command used
+    log.push_str("\n==============================\n");
+    log.push_str(
+        &format!("Finding info for file {:?}:\nHeaders: {:?}",
+                 input.file, input.headers)
+    );
+
+    // Send the source file
+    let mut stdin = compile.stdin.take().unwrap();
+    stdin.write_all(src.as_bytes()).unwrap();
+    drop(stdin);
+
+    // Get the compilation output
+    let out = compile.wait_with_output().unwrap();
+
+    // Get the output as a string
+    let output = match String::from_utf8(out.stderr) {
+        Ok(s) => s,
+        Err(e) => {
+            error!("Failed to read match data: {}", e);
+            return CompileResult { data: Err(()), to_log: log.to_string() };
+        },
+    };
+    log.push_str("\nOutput:\n");
+    log.push_str("------------------------------\n");
+    log.push_str(&output);
+    log.push_str("------------------------------\n");
+
+    // If the compilation was successful, return the stderr
+    if out.status.success() {
+        // Return the result
+        let result: MatchData = Box::new(Match {
+            // Return the relative path
+            file: input.file.strip_prefix(input.root).unwrap().to_path_buf(),
+            output,
+        });
+        log.push_str("success\n");
+        return CompileResult { data: Ok(result), to_log: log.to_string() };
+    }
+
+    // If the compilation timed out, print so
+    if let Some(code) = out.status.code() {
+        if code == 124 {
+            log.push_str("timed out\n");
+        }
+    }
+
+    // Failed, this shouldn't happen since we already tried to compile
+    log.push_str("failed\n");
+    return CompileResult { data: Err(()), to_log: log.to_string() };
 }
 
 // =============================================================================
