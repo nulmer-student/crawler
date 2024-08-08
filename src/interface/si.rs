@@ -3,10 +3,10 @@ use super::{
     InternInput, InternResult, MatchData, PreInput, PreprocessResult
 };
 
-use std::{io::{BufRead, Write}, path::PathBuf, process::{Command, Stdio}, str::FromStr};
+use std::{io::{Error, Write}, path::PathBuf, process::{Command, Stdio}, str::FromStr};
 use std::fs;
 use lazy_static::lazy_static;
-use log::{error, info};
+use log::error;
 use regex::Regex;
 use sqlx::{self, Row, Transaction};
 use sqlx::Any;
@@ -235,7 +235,13 @@ fn find_match_data(input: &CompileInput, log: &mut String) -> CompileResult {
     let loop_lines = find_inner_loops(input);
 
     // Insert SI pragmas before the inner loops
-    let src = insert_pragma(input.file, loop_lines);
+    let src = match insert_pragma(input.file, loop_lines) {
+        Ok(s) => s,
+        Err(e) => {
+            error!("Failed to insert pragma: {:?}", e);
+            return CompileResult { data: Err(()), to_log: log.to_string() };
+        },
+    };
 
     // Compile to find all information
     return find_matches(input, src, log);
@@ -247,6 +253,7 @@ fn find_inner_loops(input: &CompileInput) -> Vec<usize> {
     let clang = get_compile_bin(input, "clang");
     let mut compile = Command::new(clang)
         .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .arg("-c")
         .arg(input.file)
         .args(format_headers(input.headers))
@@ -279,9 +286,9 @@ fn find_inner_loops(input: &CompileInput) -> Vec<usize> {
 }
 
 /// Load a file into a String & insert the SI pragmas.
-fn insert_pragma(file: &PathBuf, mut pragma_lines: Vec<usize>) -> String {
+fn insert_pragma(file: &PathBuf, mut pragma_lines: Vec<usize>) -> Result<String, Error> {
     // Load the raw file
-    let contents = fs::read_to_string(file).expect("Failed to read file");
+    let contents = fs::read_to_string(file)?;
 
     // Ensure the pragma_lines are in sorted order
     pragma_lines.sort();
@@ -307,7 +314,7 @@ fn insert_pragma(file: &PathBuf, mut pragma_lines: Vec<usize>) -> String {
         acc.push('\n');
     }
 
-    return acc;
+    return Ok(acc);
 }
 
 /// Check if the given string contains a definition for a "for" loop.
