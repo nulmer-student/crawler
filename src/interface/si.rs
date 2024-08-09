@@ -279,8 +279,7 @@ fn find_inner_loops(input: &CompileInput) -> Vec<usize> {
         .expect("Failed to parse loop finder output");
     let lines: Vec<_> = out.lines()
                            .map(|l| l.split(" ").collect::<Vec<_>>()[0])
-                           .map(|s| s.parse::<usize>()
-                                .expect("Failed to parse integer"))
+                           .filter_map(|s| s.parse::<usize>().ok())
                            .collect();
     return lines;
 }

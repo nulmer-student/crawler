@@ -30,9 +30,6 @@ pub fn mine(directory: &PathBuf, log_file: &PathBuf, config: Config) -> Result<M
     // Build the dependency graph
     let dg = DepGraph::new(directory);
 
-    // Load the interface
-    let interface = interface::get_interface(&config.interface.name);
-
     // Open the log file
     let log = match fs::OpenOptions::new()
         .append(true)
@@ -56,33 +53,49 @@ pub fn mine(directory: &PathBuf, log_file: &PathBuf, config: Config) -> Result<M
         .filter_map(|file| {
             let tx = tx.clone();
 
-            // Try to compile the file
-            let mut compiler = Compiler::new(
-                 file.clone(),
-                 &dg,
-                 &config,
-                 interface.clone()
-             );
-            let result = match compiler.run() {
-                Ok(data) => {
-                    tx.send(1).unwrap();
-                    Some(data)
-                },
-                Err(e) => {
-                    debug!("Failed completely for {:?}: {}", file.path(), e);
-                    tx.send(0).unwrap();
-                    None
-                },
-            };
+            let result = std::panic::catch_unwind(|| {
+                // Load the interface
+                let interface = interface::get_interface(&config.interface.name);
 
-            // Send the compiler output
-            {
-                let mut outfile = log.lock().unwrap();
-                outfile.write_all(compiler.get_log().as_bytes()).unwrap();
-            }
+                // Try to compile the file
+                let mut compiler = Compiler::new(
+                    file.clone(),
+                    &dg,
+                    &config,
+                    interface.clone()
+                );
+
+                let comp_result = match compiler.run() {
+                    Ok(data) => {
+                        tx.send(1).unwrap();
+                        Some(data)
+                    },
+                    Err(e) => {
+                        debug!("Failed completely for {:?}: {}", file.path(), e);
+                        tx.send(0).unwrap();
+                        None
+                    },
+                };
+
+                // Send the compiler output
+                {
+                    let mut outfile = log.lock().unwrap();
+                    outfile.write_all(compiler.get_log().as_bytes()).unwrap();
+                }
+
+                return comp_result;
+            });
 
             drop(tx);
-            return result;
+
+            // If there was a panic, print so
+            match result {
+                Ok(r) => r,
+                Err(_) => {
+                    error!("Panic during compilation");
+                    return None;
+                },
+            }
          }).collect();
 
     // Gather the counts

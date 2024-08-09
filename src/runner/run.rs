@@ -9,6 +9,7 @@ use rayon::{current_thread_index, prelude::*, ThreadPool};
 use sqlx::{self, Any};
 use log::{info, error};
 use crossbeam::sync::WaitGroup;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::mpsc;
 use std::time::Instant;
 
@@ -56,9 +57,17 @@ pub fn run_all(config: &Config) {
     info!("Mining {} repositories", repos.len());
     run_pool.install(|| {
         let _ = repos.par_iter().for_each(|repo| {
-            let pool = &miner_pools[current_thread_index().unwrap()];
-            let mut runner = Runner::new(config, pool, &db, repo.clone());
-            runner.run();
+            // Mine a single repo
+            let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                let pool = &miner_pools[current_thread_index().unwrap()];
+                let mut runner = Runner::new(config, pool, &db, repo.clone());
+                runner.run();
+            }));
+
+            // Error out if there is a panic
+            if let Err(_) = result {
+                error!("Runner paniced")
+            }
         });
     })
 }

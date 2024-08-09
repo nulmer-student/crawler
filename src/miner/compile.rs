@@ -7,6 +7,7 @@ use crate::interface::{
 };
 
 use std::collections::HashSet;
+use std::panic::{self, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::sync::Arc;
 use log::{error, debug};
@@ -112,7 +113,14 @@ impl<'a> Compiler<'a> {
             content: source,
             headers: &headers,
         };
-        return self.interface.compile(input);
+
+        match panic::catch_unwind(AssertUnwindSafe(|| { self.interface.compile(input) })) {
+            Ok(r) => r,
+            Err(_) => {
+                error!("Panic during try_compile");
+                CompileResult { data: Err(()), to_log: "".to_string() }
+            }
+        }
     }
 
     /// Make headers relative to the current file.
