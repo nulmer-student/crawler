@@ -47,6 +47,7 @@ The fields of the configuration file have the following meanings:
 - Miner
   - `threads`: Number of threads to use to mine each repository.
   - `tries`: Maximum number of possible header combinations to try for a single file.
+  - `timeout`: Maximum number of seconds to spend mining a single repository.
 - Runner
   - `threads`: Number of repositories to mine in parallel.
   - `min_stars`: The minimum number of stars for a repository to be searched.

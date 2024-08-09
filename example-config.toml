@@ -5,6 +5,7 @@ args            = { clang = "/path/to/cost/model/clang" }
 [miner]
 threads         = 1
 tries           = 10
+timeout         = 1800
 
 [runner]
 threads         = 8

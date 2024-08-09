@@ -35,6 +35,7 @@ pub struct Interface {
 pub struct Miner {
     pub threads: usize,
     pub tries: usize,
+    pub timeout: usize,
 }
 
 /// Configuration for the runner.
