@@ -4,8 +4,8 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Function.h"
 
-#include <utility>
 #include <vector>
+#include <unordered_set>
 
 using namespace llvm;
 
@@ -14,6 +14,16 @@ namespace Info {
 // =============================================================================
 // Find the required information:
 // =============================================================================
+
+class IRMix {
+public:
+  // Start with count zero initialized
+  IRMix() : mem_count(0), arith_count(0), count(0){};
+
+  int mem_count;    // Number of memory instructions
+  int arith_count;  // Number of arithmetic instructions
+  int count;        // Total number of instructions
+};
 
 class InfoPass : public AnalysisInfoMixin<InfoPass> {
 public:
@@ -25,8 +35,11 @@ private:
   static AnalysisKey Key;
   friend struct AnalysisInfoMixin<InfoPass>;
 
-  using Loc = std::pair<int, int>;
-  std::vector<Loc> parse_loop_locs();
+  // Find the locations of relevent loops
+  using Locs = std::unordered_set<int>;
+  Locs parse_loop_locs();
+
+  // Compute the instruction mix of a loop
 };
 
 // =============================================================================

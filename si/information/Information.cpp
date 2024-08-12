@@ -1,5 +1,6 @@
 #include "Information.h"
 
+#include <algorithm>
 #include <cstring>
 #include <llvm/Analysis/LoopInfo.h>
 #include <llvm/IR/Function.h>
@@ -12,6 +13,8 @@
 #include "llvm/Support/CommandLine.h"
 
 #include <string>
+#include <unordered_set>
+#include <utility>
 #include <vector>
 
 using namespace llvm;
@@ -32,23 +35,22 @@ cl::opt<std::string> LoopLocs(
 
 AnalysisKey InfoPass::Key;
 
-std::vector<InfoPass::Loc> InfoPass::parse_loop_locs() {
-  std::vector<Loc> acc;
-
-  // Current line / column
+InfoPass::Locs InfoPass::parse_loop_locs() {
+  Locs acc;
   int count = 0;
-  int line = 0;
+
+  // Copy the input
+  std::string locs = LoopLocs;
 
   // Split by spaces
   const char *delim = " ";
-  char *split = std::strtok(LoopLocs.data(), delim);
+  char *split = std::strtok(locs.data(), delim);
   while (split != NULL) {
     int n = std::stoi(split);
 
+    // Only save the line numbers
     if (count % 2 == 0) {
-      line = n;
-    } else {
-      acc.push_back(std::pair(line, n));
+      acc.insert(n);
     }
 
     count++;
@@ -62,10 +64,33 @@ InfoPass::Result InfoPass::run(Function &F, FunctionAnalysisManager &FAM) {
   Result Loops;
 
   // Get the locations of relevent loops from the commandline
-  std::vector<Loc> loop_locs = this->parse_loop_locs();
+  Locs loop_locs = this->parse_loop_locs();
 
-  for (auto loc : loop_locs) {
-    errs() << loc.first << " " << loc.second << "\n";
+  // Extract the information for each relevent loop in the IR
+  for (auto &BB : F) {
+    auto &loop_info = FAM.getResult<LoopAnalysis>(F);
+    Loop *loop = loop_info.getLoopFor(&BB);
+
+    // Basic block is not in a loop
+    if (loop == nullptr)
+      continue;
+
+    // Basic block is not the loop header
+    if (!loop_info.isLoopHeader(&BB))
+      continue;
+
+    // Has debug location info
+    DebugLoc loc = BB.begin()->getDebugLoc();
+    if (loc.get() == nullptr)
+      continue;
+
+    // The loop is not one of the relevent loops
+    int line = loc.getLine();
+    if (loop_locs.find(line) == loop_locs.end())
+      continue;
+
+    // Calculate the bounds of the loop
+    loop->getBlocks();
   }
 
   return Loops;
