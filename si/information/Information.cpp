@@ -4,6 +4,7 @@
 #include <cstring>
 #include <llvm/Analysis/LoopInfo.h>
 #include <llvm/IR/Function.h>
+#include <llvm/IR/Instructions.h>
 #include <llvm/IR/Module.h>
 
 #include "llvm/IR/DebugLoc.h"
@@ -12,6 +13,7 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/CommandLine.h"
 
+#include <llvm/Support/Casting.h>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -89,11 +91,53 @@ InfoPass::Result InfoPass::run(Function &F, FunctionAnalysisManager &FAM) {
     if (loop_locs.find(line) == loop_locs.end())
       continue;
 
-    // Calculate the bounds of the loop
-    loop->getBlocks();
+    // Compute statistics
+    IRMix mix = this->find_ir_mix(loop);
+    errs() << mix.count
+           << " " << mix.mem_count
+           << " " << mix.arith_count
+           << " " << mix.other_count
+           << "\n";
   }
 
   return Loops;
+}
+
+// Opcode names of arithmetic instructions
+const std::unordered_set<std::string> ARITH_INST = {
+  "fneg", "add",  "fadd", "sub",  "fsub", "mul",  "fmul",
+  "udiv", "sdiv", "fdiv", "urem", "srem", "frem", "shl",
+  "lshr", "ashr", "and",  "or",   "xor"
+};
+
+IRMix InfoPass::find_ir_mix(Loop *loop) {
+  IRMix counts;
+
+  // Iterate over all instructions in the loop
+  for (auto &bb : loop->getBlocks()) {
+    for (auto &inst : *bb) {
+      // Count the total number
+      counts.count++;
+
+      // Arithmetic instructions
+      std::string name = inst.getOpcodeName();
+      if (ARITH_INST.find(name) != ARITH_INST.end()) {
+        counts.arith_count++;
+        continue;
+      }
+
+      // Memory instructions
+      if (isa<LoadInst>(inst) || isa<StoreInst>(inst)) {
+        counts.mem_count++;
+        continue;
+      }
+
+      // Otherwise, add to the default count
+      counts.other_count++;
+    }
+  }
+
+  return counts;
 }
 
 // =============================================================================

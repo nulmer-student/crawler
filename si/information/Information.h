@@ -3,6 +3,7 @@
 
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Function.h"
+#include "llvm/Analysis/LoopInfo.h"
 
 #include <vector>
 #include <unordered_set>
@@ -17,12 +18,13 @@ namespace Info {
 
 class IRMix {
 public:
-  // Start with count zero initialized
-  IRMix() : mem_count(0), arith_count(0), count(0){};
+  // Start with counts zero initialized
+  IRMix() : count(0), mem_count(0), arith_count(0), other_count(0){};
 
+  int count;        // Total number of instructions
   int mem_count;    // Number of memory instructions
   int arith_count;  // Number of arithmetic instructions
-  int count;        // Total number of instructions
+  int other_count;  // All other types of instructions
 };
 
 class InfoPass : public AnalysisInfoMixin<InfoPass> {
@@ -40,6 +42,7 @@ private:
   Locs parse_loop_locs();
 
   // Compute the instruction mix of a loop
+  IRMix find_ir_mix(Loop *loop);
 };
 
 // =============================================================================
