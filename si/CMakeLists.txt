@@ -55,3 +55,4 @@ add_definitions(${LLVM_DEFINITIONS})
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib")
 add_subdirectory(find_inner_loops)
+add_subdirectory(information)
