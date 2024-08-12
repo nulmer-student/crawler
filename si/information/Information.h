@@ -5,9 +5,11 @@
 #include "llvm/IR/Function.h"
 #include "llvm/Analysis/LoopInfo.h"
 
+#include <optional>
 #include <vector>
 #include <unordered_set>
 
+using namespace std;
 using namespace llvm;
 
 namespace Info {
@@ -15,6 +17,8 @@ namespace Info {
 // =============================================================================
 // Find the required information:
 // =============================================================================
+
+// Instruction mix:
 
 class IRMix {
 public:
@@ -27,9 +31,31 @@ public:
   int other_count;  // All other types of instructions
 };
 
+// Memory pattern:
+
+class MemPattern {
+public:
+  MemPattern() : start(nullopt), step(nullopt){};
+
+  optional<int> start; // Initial value of the IV
+  optional<int> step;  // Step of the IV
+};
+
+// Overall result
+
+class InfoData {
+public:
+  InfoData(IRMix mix, MemPattern pattern) : mix(mix), pattern(pattern){};
+
+  IRMix mix;
+  MemPattern pattern;
+
+  string to_string();
+};
+
 class InfoPass : public AnalysisInfoMixin<InfoPass> {
 public:
-  using Result = std::vector<DebugLoc>;
+  using Result = vector<InfoData>;
   Result run(Function &F, FunctionAnalysisManager &);
 
 private:
@@ -43,6 +69,9 @@ private:
 
   // Compute the instruction mix of a loop
   IRMix find_ir_mix(Loop *loop);
+
+  // Compute the memory access patterns of a loop
+  MemPattern find_mem_pattern(Loop *loop, FunctionAnalysisManager &FAM);
 };
 
 // =============================================================================

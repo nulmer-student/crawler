@@ -2,10 +2,17 @@
 
 #include <algorithm>
 #include <cstring>
+#include <llvm/Analysis/IVDescriptors.h>
 #include <llvm/Analysis/LoopInfo.h>
+#include <llvm/Analysis/ScalarEvolution.h>
+#include <llvm/Analysis/ScalarEvolutionExpressions.h>
+#include <llvm/IR/Constant.h>
+#include <llvm/IR/Constants.h>
 #include <llvm/IR/Function.h>
+#include <llvm/IR/Instruction.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Module.h>
+#include "llvm/Analysis/ScalarEvolution.h"
 
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/PassManager.h"
@@ -19,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+using namespace std;
 using namespace llvm;
 
 namespace Info {
@@ -30,6 +38,28 @@ cl::opt<std::string> LoopLocs(
   cl::value_desc("locations"),
   cl::desc("Location of loops"),
   cl::Required);
+
+string InfoData::to_string() {
+  string acc;
+
+  acc += "Instruction mix:\n";
+  acc += std::to_string(this->mix.count);
+  acc += "\n";
+  acc += std::to_string(this->mix.mem_count);
+  acc += "\n";
+  acc += std::to_string(this->mix.arith_count);
+  acc += "\n";
+  acc += std::to_string(this->mix.other_count);
+  acc += "\n";
+
+  acc += "Memory pattern:\n";
+  acc += std::to_string(this->pattern.start.value());
+  acc += "\n";
+  acc += std::to_string(this->pattern.step.value());
+
+
+  return acc;
+}
 
 // =============================================================================
 // Loop Finder Pass:
@@ -63,7 +93,7 @@ InfoPass::Locs InfoPass::parse_loop_locs() {
 }
 
 InfoPass::Result InfoPass::run(Function &F, FunctionAnalysisManager &FAM) {
-  Result Loops;
+  Result data;
 
   // Get the locations of relevent loops from the commandline
   Locs loop_locs = this->parse_loop_locs();
@@ -93,14 +123,11 @@ InfoPass::Result InfoPass::run(Function &F, FunctionAnalysisManager &FAM) {
 
     // Compute statistics
     IRMix mix = this->find_ir_mix(loop);
-    errs() << mix.count
-           << " " << mix.mem_count
-           << " " << mix.arith_count
-           << " " << mix.other_count
-           << "\n";
+    MemPattern mem = this->find_mem_pattern(loop, FAM);
+    data.push_back(InfoData(mix, mem));
   }
 
-  return Loops;
+  return data;
 }
 
 // Opcode names of arithmetic instructions
@@ -140,17 +167,43 @@ IRMix InfoPass::find_ir_mix(Loop *loop) {
   return counts;
 }
 
+MemPattern InfoPass::find_mem_pattern(Loop *loop, FunctionAnalysisManager &FAM) {
+  // Find the induction variable
+  Function *fn = loop->getHeader()->getFirstNonPHI()->getFunction();
+  ScalarEvolution &se = FAM.getResult<ScalarEvolutionAnalysis>(*fn);
+  PHINode *iv = loop->getInductionVariable(se);
+
+  // Get pattern values
+  MemPattern pattern;
+  InductionDescriptor desc;
+  if (InductionDescriptor::isInductionPHI(iv, loop, &se, desc)) {
+    // Get the IV start value
+    ConstantInt *start = dyn_cast<ConstantInt>(desc.getStartValue());
+    if (start != nullptr) {
+      pattern.start = start->getSExtValue();
+    }
+
+    // Get the IV step
+    const SCEVConstant *step = dyn_cast<SCEVConstant>(desc.getStep());
+    if (step != nullptr) {
+      pattern.step = step->getValue()->getSExtValue();
+    }
+  }
+
+  return pattern;
+}
+
 // =============================================================================
 // Loop Printer Pass:
 // =============================================================================
 
 PreservedAnalyses InfoPassPrinter::run(Function &F, FunctionAnalysisManager &FAM) {
   // Get the results of the loop finder pass
-  auto Results = FAM.getResult<InfoPass>(F);
+  auto data = FAM.getResult<InfoPass>(F);
 
   // Print out the matched locations
-  for (auto &Loc : Results) {
-    errs() << Loc.getLine() << " " << Loc.getCol() << "\n";
+  for (auto &info : data) {
+    errs() << info.to_string() << "\n";
   }
 
   return PreservedAnalyses::all();
