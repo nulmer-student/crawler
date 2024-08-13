@@ -17,7 +17,6 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Passes/PassBuilder.h"
-#include "llvm/Support/CommandLine.h"
 
 #include <llvm/Support/Casting.h>
 #include <string>
@@ -28,14 +27,6 @@ using namespace std;
 using namespace llvm;
 
 namespace Info {
-
-// Command line args:
-
-cl::opt<std::string> LoopLocs(
-  "loop-locs",
-  cl::value_desc("locations"),
-  cl::desc("Location of loops"),
-  cl::Required);
 
 string format_str(string label, string value, bool newline) {
   string acc;
@@ -75,36 +66,11 @@ string InfoData::to_string() {
 
 AnalysisKey InfoPass::Key;
 
-InfoPass::Locs InfoPass::parse_loop_locs() {
-  Locs acc;
-  int count = 0;
-
-  // Copy the input
-  std::string locs = LoopLocs;
-
-  // Split by spaces
-  const char *delim = " ";
-  char *split = std::strtok(locs.data(), delim);
-  while (split != NULL) {
-    int n = std::stoi(split);
-
-    // Only save the line numbers
-    if (count % 2 == 0) {
-      acc.insert(n);
-    }
-
-    count++;
-    split = strtok(NULL, delim);
-  }
-
-  return acc;
-}
-
 InfoPass::Result InfoPass::run(Function &F, FunctionAnalysisManager &FAM) {
   Result data;
 
   // Get the locations of relevent loops from the commandline
-  Locs loop_locs = this->parse_loop_locs();
+  // Locs loop_locs = this->parse_loop_locs();
 
   // Extract the information for each relevent loop in the IR
   for (auto &BB : F) {
@@ -119,14 +85,9 @@ InfoPass::Result InfoPass::run(Function &F, FunctionAnalysisManager &FAM) {
     if (!loop_info.isLoopHeader(&BB))
       continue;
 
-    // Has debug location info
+    // Has debug location info -> Has not been optimized away
     DebugLoc loc = BB.begin()->getDebugLoc();
     if (loc.get() == nullptr)
-      continue;
-
-    // The loop is not one of the relevent loops
-    int line = loc.getLine();
-    if (loop_locs.find(line) == loop_locs.end())
       continue;
 
     // Compute statistics
