@@ -162,6 +162,7 @@ impl Interface for FindVectorSI {
 // Compile
 // =============================================================================
 
+/// Get the path of a binary in the provied LLVM directory.
 fn get_compile_bin(input: &CompileInput, bin: &str) -> PathBuf {
     let dir = PathBuf::from_str(&input.config.interface.args["llvm"]).unwrap();
 
@@ -331,8 +332,9 @@ fn find_matches(input: &CompileInput, src: String, log: &mut String) -> CompileR
         .stderr(Stdio::piped())
         .args(["-c", "-x", "c"])
         .args(format_headers(input.headers))
-        .args(["-o", "/dev/null"])
+        .args(["-o", "-"])
         .args(["-emit-llvm", "-O3", "-Rpass=loop-vectorize"])
+        .args(["-mllvm", "-debug-only=loop-vectorize"])
         .arg("-")
         .spawn()
         .unwrap();
@@ -367,11 +369,19 @@ fn find_matches(input: &CompileInput, src: String, log: &mut String) -> CompileR
 
     // If the compilation was successful, return the stderr
     if out.status.success() {
+        // Run the loop info pass
+        let info = match loop_info(input, &out.stdout, log) {
+            Ok(s) => s,
+            Err(_) => "".to_string(),
+        };
+        log.push_str(&info);
+        log.push_str("------------------------------\n");
+
         // Return the result
         let result: MatchData = Box::new(Match {
             // Return the relative path
             file: input.file.strip_prefix(input.root).unwrap().to_path_buf(),
-            output,
+            output: output + &info,
         });
         log.push_str("success\n");
         return CompileResult { data: Ok(result), to_log: log.to_string() };
@@ -387,6 +397,39 @@ fn find_matches(input: &CompileInput, src: String, log: &mut String) -> CompileR
     // Failed, this shouldn't happen since we already tried to compile
     log.push_str("failed\n");
     return CompileResult { data: Err(()), to_log: log.to_string() };
+}
+
+/// Find loop information using the "Information" pass
+fn loop_info(input: &CompileInput, src: &[u8], log: &mut String) -> Result<String, ()> {
+    // Spawn opt with the information pass
+    let info_pass = &input.config.interface.args["info"];
+    let opt = get_compile_bin(input, "opt");
+    let mut cmd = Command::new(opt)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .arg(&format!("-load-pass-plugin={}", info_pass))
+        .arg("-passes=print<info>")
+        .args(["-o", "/dev/null"])
+        .spawn()
+        .unwrap();
+
+    // Send the optimized code to stdin
+    let mut stdin = cmd.stdin.take().unwrap();
+    stdin.write_all(src).unwrap();
+    drop(stdin);
+
+    // Get the output
+    let output = cmd.wait_with_output().unwrap();
+    let info = match String::from_utf8(output.stderr) {
+        Ok(s) => s,
+        Err(e) => {
+            error!("Failed to read information output: {:?}", e);
+            return Err(());
+        },
+    };
+
+    return Ok(info);
 }
 
 // =============================================================================
