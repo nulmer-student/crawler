@@ -1,6 +1,5 @@
 #include "Information.h"
 
-#include <algorithm>
 #include <cstring>
 #include <llvm/Analysis/IVDescriptors.h>
 #include <llvm/Analysis/LoopInfo.h>
@@ -23,7 +22,6 @@
 #include <llvm/Support/Casting.h>
 #include <string>
 #include <unordered_set>
-#include <utility>
 #include <vector>
 
 using namespace std;
@@ -39,24 +37,34 @@ cl::opt<std::string> LoopLocs(
   cl::desc("Location of loops"),
   cl::Required);
 
+string format_str(string label, string value, bool newline) {
+  string acc;
+  acc += label;
+  acc += ": ";
+  acc += value;
+  if (newline)
+    acc += "\n";
+
+  return acc;
+}
+
 string InfoData::to_string() {
   string acc;
 
+  acc += "==============================\n";
+  acc += "Location:\n";
+  acc += format_str("line", std::to_string(this->location->getLine()),   true);
+  acc += format_str("col",  std::to_string(this->location->getColumn()), true);
+
   acc += "Instruction mix:\n";
-  acc += std::to_string(this->mix.count);
-  acc += "\n";
-  acc += std::to_string(this->mix.mem_count);
-  acc += "\n";
-  acc += std::to_string(this->mix.arith_count);
-  acc += "\n";
-  acc += std::to_string(this->mix.other_count);
-  acc += "\n";
+  acc += format_str("count", std::to_string(this->mix.count),       true);
+  acc += format_str("mem",   std::to_string(this->mix.mem_count),   true);
+  acc += format_str("arith", std::to_string(this->mix.arith_count), true);
+  acc += format_str("other", std::to_string(this->mix.other_count), true);
 
   acc += "Memory pattern:\n";
-  acc += std::to_string(this->pattern.start.value());
-  acc += "\n";
-  acc += std::to_string(this->pattern.step.value());
-
+  acc += format_str("start", std::to_string(this->pattern.start.value()), true);
+  acc += format_str("step",  std::to_string(this->pattern.step.value()),  false);
 
   return acc;
 }
@@ -124,7 +132,7 @@ InfoPass::Result InfoPass::run(Function &F, FunctionAnalysisManager &FAM) {
     // Compute statistics
     IRMix mix = this->find_ir_mix(loop);
     MemPattern mem = this->find_mem_pattern(loop, FAM);
-    data.push_back(InfoData(mix, mem));
+    data.push_back(InfoData(loc, mix, mem));
   }
 
   return data;

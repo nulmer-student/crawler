@@ -5,6 +5,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/Analysis/LoopInfo.h"
 
+#include <llvm/IR/DebugLoc.h>
 #include <optional>
 #include <vector>
 #include <unordered_set>
@@ -45,8 +46,10 @@ public:
 
 class InfoData {
 public:
-  InfoData(IRMix mix, MemPattern pattern) : mix(mix), pattern(pattern){};
+  InfoData(DebugLoc location, IRMix mix, MemPattern pattern)
+    : location(location), mix(mix), pattern(pattern){};
 
+  DebugLoc location;
   IRMix mix;
   MemPattern pattern;
 
