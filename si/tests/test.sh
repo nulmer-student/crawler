@@ -15,16 +15,16 @@ $OPT -load-pass-plugin=../build/lib/libFindInnerLoops.so \
     loops.ll 2> "$LOCS"
 
 # Loop information:
-
-$CLANG loops.c -S -g -emit-llvm -o opt.ll \
-    -fno-slp-vectorize \
-    -O3 -Rpass=loop-vectorize
-    # -mllvm -debug-only=loop-vectorize
-
 tr '\n' ' ' < "$LOCS" > "$LOCS2"
+
+$CLANG loops.c -S -g -emit-llvm \
+    -fno-slp-vectorize \
+    -O3 -Rpass=loop-vectorize \
+    -mllvm -debug-only=loop-vectorize \
+    -o opt.ll
+
 
 $OPT -load-pass-plugin=../build/lib/libInformation.so \
     -passes="print<info>" \
-    --loop-locs="$(cat "$LOCS2")" \
     -o /dev/null \
     opt.ll
