@@ -28,13 +28,14 @@ using namespace llvm;
 
 namespace Info {
 
-string format_str(string label, string value, bool newline) {
+string format_str(string label, string value, bool last) {
   string acc;
   acc += label;
   acc += ": ";
   acc += value;
-  if (newline)
-    acc += "\n";
+  if (!last) {
+    acc += ", ";
+  }
 
   return acc;
 }
@@ -42,20 +43,18 @@ string format_str(string label, string value, bool newline) {
 string InfoData::to_string() {
   string acc;
 
-  acc += "==============================\n";
-  acc += "Location:\n";
-  acc += format_str("line", std::to_string(this->location->getLine()),   true);
-  acc += format_str("col",  std::to_string(this->location->getColumn()), true);
+  acc += "loop info: (";
+  acc += format_str("line", std::to_string(this->location->getLine()),   false);
+  acc += format_str("col",  std::to_string(this->location->getColumn()), false);
 
-  acc += "Instruction mix:\n";
-  acc += format_str("count", std::to_string(this->mix.count),       true);
-  acc += format_str("mem",   std::to_string(this->mix.mem_count),   true);
-  acc += format_str("arith", std::to_string(this->mix.arith_count), true);
-  acc += format_str("other", std::to_string(this->mix.other_count), true);
+  acc += format_str("ir_count", std::to_string(this->mix.count),       false);
+  acc += format_str("ir_mem",   std::to_string(this->mix.mem_count),   false);
+  acc += format_str("ir_arith", std::to_string(this->mix.arith_count), false);
+  acc += format_str("ir_other", std::to_string(this->mix.other_count), false);
 
-  acc += "Memory pattern:\n";
-  acc += format_str("start", std::to_string(this->pattern.start.value()), true);
-  acc += format_str("step",  std::to_string(this->pattern.step.value()),  false);
+  acc += format_str("pat_start", std::to_string(this->pattern.start.value()), false);
+  acc += format_str("pat_step",  std::to_string(this->pattern.step.value()),  true);
+  acc += ")";
 
   return acc;
 }
