@@ -52,8 +52,17 @@ string InfoData::to_string() {
   acc += format_str("ir_arith", std::to_string(this->mix.arith_count), false);
   acc += format_str("ir_other", std::to_string(this->mix.other_count), false);
 
-  acc += format_str("pat_start", std::to_string(this->pattern.start.value()), false);
-  acc += format_str("pat_step",  std::to_string(this->pattern.step.value()),  true);
+
+  string start = "null";
+  if (this->pattern.start.has_value())
+    start = std::to_string(this->pattern.start.value());
+
+  string step = "null";
+  if (this->pattern.step.has_value())
+    start = std::to_string(this->pattern.step.value());
+
+  acc += format_str("pat_start", start, false);
+  acc += format_str("pat_step", step, true);
   acc += ")";
 
   return acc;
@@ -136,13 +145,17 @@ IRMix InfoPass::find_ir_mix(Loop *loop) {
 }
 
 MemPattern InfoPass::find_mem_pattern(Loop *loop, FunctionAnalysisManager &FAM) {
-  // Find the induction variable
+  MemPattern pattern;
   Function *fn = loop->getHeader()->getFirstNonPHI()->getFunction();
   ScalarEvolution &se = FAM.getResult<ScalarEvolutionAnalysis>(*fn);
-  PHINode *iv = loop->getInductionVariable(se);
 
-  // Get pattern values
-  MemPattern pattern;
+  // Find the induction variable
+  PHINode *iv = loop->getInductionVariable(se);
+  if (iv == nullptr) {
+    errs() << "Failed to find induction variable\n";
+    return pattern;
+  }
+
   InductionDescriptor desc;
   if (InductionDescriptor::isInductionPHI(iv, loop, &se, desc)) {
     // Get the IV start value
