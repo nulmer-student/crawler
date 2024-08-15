@@ -8,7 +8,7 @@ use std::fs;
 use lazy_static::lazy_static;
 use log::error;
 use regex::Regex;
-use sqlx::{self, Row, Transaction};
+use sqlx::{self, pool, Row, Transaction};
 use sqlx::Any;
 
 /// Communication between the compile & intern phases.
@@ -139,8 +139,7 @@ impl Interface for FindVectorSI {
         };
 
         // Intern the matches
-        // let result = intern_matches(&mut conn, input.clone());
-        let result = Ok(());
+        let result = intern_matches(&mut conn, input.clone());
 
         // Commit the transaction
         input.db.rt.block_on(async {
@@ -451,21 +450,45 @@ fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> Intern
                 let file_id = input.db.rt.block_on(ensure_file(
                     conn, &entry.file, input.repo_id
                 ));
+                let file_id = match file_id {
+                    Ok(id) => id,
+                    Err(e) => {
+                        error!("Failed to ensure file: {:?}", e);
+                        continue;
+                    }
+                };
+                println!("{:?}", args);
 
-                // Insert the match
-                match file_id {
-                    Ok(id) => {
-                        let r = input.db.rt.block_on(insert_match(
-                            conn, id, &args
-                        ));
-
-                        match r {
-                            Ok(_) => {},
-                            Err(e) => error!("Failed to insert match: {}", e),
-                        }
-                    },
-                    Err(e) => error!("Failed to insert file: {}", e),
+                // Insert the match & location
+                let match_id = input.db.rt.block_on(new_match_id(conn));
+                println!("{:?}", match_id);
+                let match_id = match match_id {
+                    Ok(id) => id,
+                    Err(e) => {
+                        error!("Failed to get match id: {:?}", e);
+                        continue;
+                    }
+                };
+                if let Err(e) = input.db.rt.block_on(
+                    insert_match(conn, match_id, file_id, args[0], args[1])
+                ) {
+                    error!("Failed to insert match: {:?}", e);
+                    continue;
                 }
+
+                // Insert vector remarks
+                if let Err(e) = input.db.rt.block_on(
+                    insert_remarks(conn, match_id, args[2], args[3], args[4])
+                ) {
+                    error!("Failed to insert remarks: {:?}", e);
+                    continue;
+                }
+
+                // Insert IR mix
+                // TODO
+
+                // Insert loop pattern
+                // TODO
             }
         }
     }
@@ -511,18 +534,39 @@ async fn ensure_file(conn: &mut Transaction<'_, Any>, file: &PathBuf, repo: i64)
     }
 }
 
-/// Insert a match into the database.
-async fn insert_match(pool: &mut Transaction<'_, Any>, file_id: i64, args: &[i64; 5]) -> Result<(), sqlx::Error> {
-    sqlx::query::<Any>(
-        "insert into matches values (uuid_short(), ?, ?, ?, ?, ?, ?)"
-    ).bind(file_id)
-     .bind(args[0])
-     .bind(args[1])
-     .bind(args[2])
-     .bind(args[3])
-     .bind(args[4])
-     .execute(pool.as_mut())
-     .await?;
+async fn new_match_id(conn: &mut Transaction<'_, Any>) -> Result<i64, sqlx::Error> {
+    let row = sqlx::query::<Any>("select uuid_short()")
+        .fetch_one(conn.as_mut())
+        .await;
+
+    let id = match row {
+        Ok(id) => Ok(id.get::<i64, usize>(0)),
+        Err(e) => Err(e),
+    };
+
+    return id;
+}
+
+async fn insert_match(conn: &mut Transaction<'_, Any>, match_id: i64, file_id: i64, line: i64, col: i64) -> Result<(), sqlx::Error> {
+    sqlx::query::<Any>("insert into matches values (?, ?, ?, ?)")
+        .bind(match_id)
+        .bind(file_id)
+        .bind(line)
+        .bind(col)
+        .execute(conn.as_mut())
+        .await?;
+
+    return Ok(());
+}
+
+async fn insert_remarks(conn: &mut Transaction<'_, Any>, match_id: i64, vec: i64, width: i64, si: i64) -> Result<(), sqlx::Error> {
+    sqlx::query::<Any>("insert into remarks values (?, ?, ?, ?)")
+        .bind(match_id)
+        .bind(vec)
+        .bind(width)
+        .bind(si)
+        .execute(conn.as_mut())
+        .await?;
 
     return Ok(());
 }
