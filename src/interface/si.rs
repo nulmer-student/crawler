@@ -6,9 +6,9 @@ use super::{
 use std::{io::{Error, Write}, path::PathBuf, process::{Command, Stdio}, str::FromStr};
 use std::fs;
 use lazy_static::lazy_static;
-use log::error;
+use log::{error, info};
 use regex::Regex;
-use sqlx::{self, pool, Row, Transaction};
+use sqlx::{self, Row, Transaction};
 use sqlx::Any;
 
 /// Communication between the compile & intern phases.
@@ -16,6 +16,19 @@ use sqlx::Any;
 struct Match {
     file: PathBuf,
     output: String,
+}
+
+/// Values returned from the loop information pass
+#[derive(Debug)]
+struct LoopInfo {
+    line: i64,
+    col: i64,
+    ir_count: i64,
+    ir_mem: i64,
+    ir_arith: i64,
+    ir_other: i64,
+    pat_start: Option<i64>,
+    pat_step: Option<i64>,
 }
 
 lazy_static! {
@@ -33,6 +46,21 @@ lazy_static! {
     /// Check if a contains a for loop.
     static ref LOOP_PATTERN: Regex = {
         Regex::new(r"for").unwrap()
+    };
+
+    static ref INFO_PATTERN: Regex = {
+        let mut pattern = "".to_string();
+        pattern.push_str(r"loop info: \(");
+        pattern.push_str(r"line: (\d+), ");
+        pattern.push_str(r"col: (\d+), ");
+        pattern.push_str(r"ir_count: (\d+), ");
+        pattern.push_str(r"ir_mem: (\d+), ");
+        pattern.push_str(r"ir_arith: (\d+), ");
+        pattern.push_str(r"ir_other: (\d+), ");
+        pattern.push_str(r"pat_start: (\S+), ");
+        pattern.push_str(r"pat_step: (\S+)");
+        pattern.push_str(r"\)");
+        Regex::new(&pattern).unwrap()
     };
 }
 
@@ -367,7 +395,10 @@ fn find_matches(input: &CompileInput, src: String, log: &mut String) -> CompileR
         // Run the loop info pass
         let info = match loop_info(input, &out.stdout, log) {
             Ok(s) => s,
-            Err(_) => "".to_string(),
+            Err(e) => {
+                error!("Failed to find loop info: {:?}", e);
+                "".to_string()
+            }
         };
         log.push_str(&info);
         log.push_str("------------------------------\n");
@@ -434,6 +465,9 @@ fn loop_info(input: &CompileInput, src: &[u8], _log: &mut String) -> Result<Stri
 fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> InternResult {
     for m in input.data {
         if let Some(entry) = m.downcast_ref::<Match>() {
+            // Parse the loop info
+            let loop_info = parse_loop_info(&entry.output);
+
             // Parse the output for vectorization opps
             let pattern = &MATCH_PATTERN;
             for (_body, args) in pattern
@@ -457,11 +491,9 @@ fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> Intern
                         continue;
                     }
                 };
-                println!("{:?}", args);
 
                 // Insert the match & location
                 let match_id = input.db.rt.block_on(new_match_id(conn));
-                println!("{:?}", match_id);
                 let match_id = match match_id {
                     Ok(id) => id,
                     Err(e) => {
@@ -484,10 +516,26 @@ fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> Intern
                     continue;
                 }
 
-                // Insert IR mix
-                // TODO
+                // Check to see if there is loop info for this loop
+                if let Some(info) = find_loop_info(&loop_info, args[0], args[1]) {
+                    // Insert IR mix
+                    if let Err(e) = input.db.rt.block_on(
+                        insert_ir_mix(conn, match_id, info)
+                    ) {
+                        error!("Failed to insert ir mix: {:?}", e);
+                        continue;
+                    }
 
-                // Insert loop pattern
+                    // Insert loop pattern
+                    if let Err(e) = input.db.rt.block_on(
+                        insert_mem_pattern(conn, match_id, info)
+                    ) {
+                        error!("Failed to insert loop pattern: {:?}", e);
+                        continue;
+                    }
+                }
+
+                // Parse the -debug-only
                 // TODO
             }
         }
@@ -534,6 +582,7 @@ async fn ensure_file(conn: &mut Transaction<'_, Any>, file: &PathBuf, repo: i64)
     }
 }
 
+/// Return a new match id.
 async fn new_match_id(conn: &mut Transaction<'_, Any>) -> Result<i64, sqlx::Error> {
     let row = sqlx::query::<Any>("select uuid_short()")
         .fetch_one(conn.as_mut())
@@ -547,6 +596,7 @@ async fn new_match_id(conn: &mut Transaction<'_, Any>) -> Result<i64, sqlx::Erro
     return id;
 }
 
+/// Insert a match into the database.
 async fn insert_match(conn: &mut Transaction<'_, Any>, match_id: i64, file_id: i64, line: i64, col: i64) -> Result<(), sqlx::Error> {
     sqlx::query::<Any>("insert into matches values (?, ?, ?, ?)")
         .bind(match_id)
@@ -559,12 +609,81 @@ async fn insert_match(conn: &mut Transaction<'_, Any>, match_id: i64, file_id: i
     return Ok(());
 }
 
+/// Insert vectorization remarks into the database.
 async fn insert_remarks(conn: &mut Transaction<'_, Any>, match_id: i64, vec: i64, width: i64, si: i64) -> Result<(), sqlx::Error> {
     sqlx::query::<Any>("insert into remarks values (?, ?, ?, ?)")
         .bind(match_id)
         .bind(vec)
         .bind(width)
         .bind(si)
+        .execute(conn.as_mut())
+        .await?;
+
+    return Ok(());
+}
+
+/// Return None if input is null, parse otherwise.
+fn loop_info_option(input: &str) -> Option<i64> {
+    match input {
+        "null" => None,
+        other => Some(other.parse::<i64>().unwrap()),
+    }
+}
+
+/// Parse the loop info from INPUT.
+fn parse_loop_info(input: &str) -> Vec<LoopInfo> {
+    let mut acc = vec![];
+
+    let pattern = &INFO_PATTERN;
+    for (_body, [line, col, ir_count, ir_mem, ir_arith, ir_other, pat_start, pat_step])
+        in pattern.captures_iter(input).map(|c| c.extract::<8>()) {
+
+        acc.push(LoopInfo {
+            line: line.parse::<i64>().unwrap(),
+            col: col.parse::<i64>().unwrap(),
+            ir_count: ir_count.parse::<i64>().unwrap(),
+            ir_mem: ir_mem.parse::<i64>().unwrap(),
+            ir_arith: ir_arith.parse::<i64>().unwrap(),
+            ir_other: ir_other.parse::<i64>().unwrap(),
+            pat_start: loop_info_option(pat_start),
+            pat_step: loop_info_option(pat_step),
+        });
+    }
+
+    return acc;
+}
+
+/// Search a list of LoopInfo for a loop that matches LINE & COL.
+fn find_loop_info(loop_info: &[LoopInfo], line: i64, _col: i64) -> Option<&LoopInfo> {
+    for info in loop_info {
+        if info.line == line {
+            return Some(&info);
+        }
+    }
+
+    return None;
+}
+
+/// Insert the IR mix into the database.
+async fn insert_ir_mix(conn: &mut Transaction<'_, Any>, match_id: i64, info: &LoopInfo) -> Result<(), sqlx::Error> {
+    sqlx::query::<Any>("insert into ir_mix values (?, ?, ?, ?, ?)")
+        .bind(match_id)
+        .bind(info.ir_count)
+        .bind(info.ir_mem)
+        .bind(info.ir_arith)
+        .bind(info.ir_other)
+        .execute(conn.as_mut())
+        .await?;
+
+    return Ok(());
+}
+
+/// Insert the IR mix into the database.
+async fn insert_mem_pattern(conn: &mut Transaction<'_, Any>, match_id: i64, info: &LoopInfo) -> Result<(), sqlx::Error> {
+    sqlx::query::<Any>("insert into pattern values (?, ?, ?)")
+        .bind(match_id)
+        .bind(info.pat_start)
+        .bind(info.pat_step)
         .execute(conn.as_mut())
         .await?;
 
