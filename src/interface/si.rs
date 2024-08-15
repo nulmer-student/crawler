@@ -64,11 +64,38 @@ impl Interface for FindVectorSI {
                  file_id     bigint,
                  line        int,
                  col         int,
+                 primary key (match_id),
+                 foreign key (file_id) references files)")
+                .execute(&input.db.pool).await?;
+
+            let _ = sqlx::query(
+                "create table if not exists remarks (
+                 match_id    bigint,
                  vector      int,
                  width       int,
                  si          int,
                  primary key (match_id),
-                 foreign key (file_id) references files)")
+                 foreign key (match_id) references matches)")
+                .execute(&input.db.pool).await?;
+
+            let _ = sqlx::query(
+                "create table if not exists ir_mix (
+                 match_id    bigint,
+                 count       int,
+                 mem         int,
+                 arith       int,
+                 other       int,
+                 primary key (match_id),
+                 foreign key (match_id) references matches)")
+                .execute(&input.db.pool).await?;
+
+            let _ = sqlx::query(
+                "create table if not exists pattern (
+                 match_id    bigint,
+                 start       int,
+                 stride      int,
+                 primary key (match_id),
+                 foreign key (match_id) references matches)")
                 .execute(&input.db.pool).await?;
 
             return Ok(());
@@ -112,7 +139,8 @@ impl Interface for FindVectorSI {
         };
 
         // Intern the matches
-        let result = intern_matches(&mut conn, input.clone());
+        // let result = intern_matches(&mut conn, input.clone());
+        let result = Ok(());
 
         // Commit the transaction
         input.db.rt.block_on(async {
