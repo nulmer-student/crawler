@@ -51,6 +51,7 @@ pub struct CompileResult {
 // Intern:
 
 #[allow(dead_code)]
+#[derive(Clone)]
 pub struct InternInput<'a> {
     pub config: &'a Config,
     pub repo_id: i64,

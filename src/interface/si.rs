@@ -111,50 +111,18 @@ impl Interface for FindVectorSI {
             },
         };
 
-        for m in input.data {
-            if let Some(entry) = m.downcast_ref::<Match>() {
-                // Parse the output for vectorization opps
-                let pattern = &MATCH_PATTERN;
-                for (_body, args) in pattern
-                    .captures_iter(&entry.output).map(|c| c.extract::<5>())
-                {
-                    let args: [i64; 5] = args
-                        .iter()
-                        .map(|a| a.parse::<i64>().unwrap())
-                        .collect::<Vec<i64>>()
-                        .try_into()
-                        .unwrap();
+        // Intern the matches
+        let result = intern_matches(&mut conn, input.clone());
 
-                    // Add the file to the files table
-                    let file_id = input.db.rt.block_on(ensure_file(
-                        &mut conn, &entry.file, input.repo_id
-                    ));
-
-                    // Insert the match
-                    match file_id {
-                        Ok(id) => {
-                            let r = input.db.rt.block_on(insert_match(
-                                &mut conn, id, &args
-                            ));
-
-                            match r {
-                                Ok(_) => {},
-                                Err(e) => error!("Failed to insert match: {}", e),
-                            }
-                        },
-                        Err(e) => error!("Failed to insert file: {}", e),
-                    }
-                }
-            }
-        }
-
+        // Commit the transaction
         input.db.rt.block_on(async {
             match conn.commit().await {
                 Ok(_) => {},
                 Err(e) => { error!("Failed to commit transaction: {:?}", e) },
             }
         });
-        return Ok(());
+
+        return result;
     }
 }
 
@@ -400,7 +368,7 @@ fn find_matches(input: &CompileInput, src: String, log: &mut String) -> CompileR
 }
 
 /// Find loop information using the "Information" pass
-fn loop_info(input: &CompileInput, src: &[u8], log: &mut String) -> Result<String, ()> {
+fn loop_info(input: &CompileInput, src: &[u8], _log: &mut String) -> Result<String, ()> {
     // Spawn opt with the information pass
     let info_pass = &input.config.interface.args["info"];
     let opt = get_compile_bin(input, "opt");
@@ -435,6 +403,47 @@ fn loop_info(input: &CompileInput, src: &[u8], log: &mut String) -> Result<Strin
 // =============================================================================
 // Intern
 // =============================================================================
+
+fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> InternResult {
+    for m in input.data {
+        if let Some(entry) = m.downcast_ref::<Match>() {
+            // Parse the output for vectorization opps
+            let pattern = &MATCH_PATTERN;
+            for (_body, args) in pattern
+                .captures_iter(&entry.output).map(|c| c.extract::<5>())
+            {
+                let args: [i64; 5] = args
+                    .iter()
+                    .map(|a| a.parse::<i64>().unwrap())
+                    .collect::<Vec<i64>>()
+                    .try_into()
+                    .unwrap();
+
+                // Add the file to the files table
+                let file_id = input.db.rt.block_on(ensure_file(
+                    conn, &entry.file, input.repo_id
+                ));
+
+                // Insert the match
+                match file_id {
+                    Ok(id) => {
+                        let r = input.db.rt.block_on(insert_match(
+                            conn, id, &args
+                        ));
+
+                        match r {
+                            Ok(_) => {},
+                            Err(e) => error!("Failed to insert match: {}", e),
+                        }
+                    },
+                    Err(e) => error!("Failed to insert file: {}", e),
+                }
+            }
+        }
+    }
+
+    return Ok(());
+}
 
 /// Get the file_id of FILE.
 async fn file_id(pool: &mut Transaction<'_, Any>, file: &PathBuf, repo: i64) -> Option<i64> {
