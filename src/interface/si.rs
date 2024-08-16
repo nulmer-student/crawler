@@ -10,7 +10,7 @@ use std::process::{Command, Stdio};
 use std::str::FromStr;
 use std::fs;
 use lazy_static::lazy_static;
-use log::{error, info};
+use log::{error, info, warn};
 use regex::Regex;
 use sqlx::{self, Row, Transaction};
 use sqlx::Any;
@@ -144,12 +144,26 @@ impl Interface for FindVectorSI {
                 .execute(&input.db.pool).await?;
 
             let _ = sqlx::query(
-                "create table if not exists pattern (
+                "create table if not exists si_info_types (
+                 type_id     int,
+                 name        text,
+                 primary key (type_id))")
+                .execute(&input.db.pool).await?;
+            let _ = sqlx::query(
+                "insert ignore into si_info_types values
+                 (0, 'Enabled'),
+                 (1, 'Disabled'),
+                 (2, 'Floating Point'),
+                 (3, 'Control Flow')")
+                .execute(&input.db.pool).await?;
+
+            let _ = sqlx::query(
+                "create table if not exists si_info (
                  match_id    bigint,
-                 start       int,
-                 stride      int,
+                 type_id     int,
                  primary key (match_id),
-                 foreign key (match_id) references matches)")
+                 foreign key (match_id) references matches,
+                 foreign key (type_id) references si_info_types)")
                 .execute(&input.db.pool).await?;
 
             return Ok(());
@@ -491,6 +505,7 @@ fn loop_info(input: &CompileInput, src: &[u8], _log: &mut String) -> Result<Stri
 fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> InternResult {
     for m in input.data {
         if let Some(entry) = m.downcast_ref::<Match>() {
+            info!("File: {:?}", entry.file);
             // Parse the loop info
             let loop_info = parse_loop_info(&entry.output);
 
@@ -508,6 +523,8 @@ fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> Intern
                     .collect::<Vec<i64>>()
                     .try_into()
                     .unwrap();
+                let line = args[0];
+                let col  = args[1];
 
                 // Add the file to the files table
                 let file_id = input.db.rt.block_on(ensure_file(
@@ -531,7 +548,7 @@ fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> Intern
                     }
                 };
                 if let Err(e) = input.db.rt.block_on(
-                    insert_match(conn, match_id, file_id, args[0], args[1])
+                    insert_match(conn, match_id, file_id, line, col)
                 ) {
                     error!("Failed to insert match: {:?}", e);
                     continue;
@@ -546,7 +563,7 @@ fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> Intern
                 }
 
                 // Check to see if there is loop info for this loop
-                if let Some(info) = find_loop_info(&loop_info, args[0], args[1]) {
+                if let Some(info) = find_loop_info(&loop_info, line, col) {
                     // Insert IR mix
                     if let Err(e) = input.db.rt.block_on(
                         insert_ir_mix(conn, match_id, info)
@@ -562,6 +579,22 @@ fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> Intern
                         error!("Failed to insert loop pattern: {:?}", e);
                         continue;
                     }
+                }
+
+                // Check to see if there is debug info
+                println!("{:?}", debug_info);
+                println!("{:?}", (line, col));
+                if let Some(info) = debug_info.get(&(line, col)) {
+                    if let Err(e) = input.db.rt.block_on(
+                        insert_si_status(conn, match_id, &info)
+                    ) {
+                        error!("Failed to insert debug info: {:?}", e);
+                    }
+                } else {
+                    warn!(
+                        "Failed to find debug info for {:?} in {:?}",
+                        (line, col), entry.file
+                    )
                 }
             }
         }
@@ -721,7 +754,7 @@ fn parse_vector_debug(input: &str) -> DebugInfo {
     let mut acc = DebugInfo::new();
 
     // Find the sections for each loop
-    let name_pattern = Regex::new(r"LV: Checking a loop[^:]*:(\d+):(\d+)\n")
+    let name_pattern = Regex::new(r"LV: Checking a loop[^:]*:(\d+):(\d+)[^\n]*\n")
         .unwrap();
     let locs: Vec<_> = name_pattern.captures_iter(input).collect();
     let parts: Vec<_> = locs.iter().map(|c| c.get(0).unwrap()).collect();
@@ -749,7 +782,6 @@ fn parse_vector_debug(input: &str) -> DebugInfo {
     let mut status: Vec<SIStatus> = vec![];
     for (start, end) in regions.clone() {
         let body = &input[start..end];
-        // println!("{}", body);
 
         if fp_pattern.is_match(body) {
             status.push(SIStatus::FloatingPoint);
@@ -780,4 +812,23 @@ fn parse_vector_debug(input: &str) -> DebugInfo {
     }
 
     return acc;
+}
+
+/// Insert the IR mix into the database.
+async fn insert_si_status(conn: &mut Transaction<'_, Any>, match_id: i64, info: &SIStatus) -> Result<(), sqlx::Error> {
+    // FIXME: Hard-coded ids
+    let key = match info {
+        SIStatus::Enabled       => 0,
+        SIStatus::Disabled      => 1,
+        SIStatus::FloatingPoint => 2,
+        SIStatus::ControlFlow   => 3,
+    };
+
+    sqlx::query::<Any>("insert into si_info values (?, ?)")
+        .bind(match_id)
+        .bind(key)
+        .execute(conn.as_mut())
+        .await?;
+
+    return Ok(());
 }
