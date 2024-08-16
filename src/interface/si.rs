@@ -185,13 +185,12 @@ impl Interface for FindVectorSI {
         // Log output
         let mut log = "".to_string();
 
-        // Try to compile the file & return if it fails
-        if !try_compile(&input, &mut log) {
-            return CompileResult { data: Err(()), to_log: log };
+        // Try to compile the file & return if it fails. Otherwise, find the
+        // match data.
+        match try_compile(&input, &mut log) {
+            Err(_) => CompileResult { data: Err(()), to_log: log },
+            Ok(src) => find_match_data(&input, &mut log, &src),
         }
-
-        // If the compilation succeeded, find the matches
-        return find_match_data(&input, &mut log);
     }
 
     fn intern(&self, input: InternInput) -> InternResult {
@@ -240,7 +239,7 @@ fn format_headers(headers: &Vec<PathBuf>) -> Vec<String> {
 }
 
 /// Return true if the compilation succeeded, & return the output.
-fn try_compile(input: &CompileInput, log: &mut String) -> bool {
+fn try_compile(input: &CompileInput, log: &mut String) -> Result<Vec<u8>, ()> {
     // Get the path to clang from the args
     let clang = get_compile_bin(input, "clang");
     let headers = format_headers(input.headers);
@@ -252,7 +251,7 @@ fn try_compile(input: &CompileInput, log: &mut String) -> bool {
         .arg("-c")
         .arg(input.file)
         .args(headers)
-        .args(["-o", "/dev/null"])
+        .args(["-emit-llvm", "-g", "-o", "-",])
         .output()
         .unwrap();
 
@@ -283,8 +282,12 @@ fn try_compile(input: &CompileInput, log: &mut String) -> bool {
     }
 
     // Return true if the compilation succeeded
-    let result = compile.status.success();
-    if result {
+    let result = match compile.status.success() {
+        true => Ok(compile.stdout),
+        false => Err(()),
+    };
+
+    if result.is_ok() {
         log.push_str("success\n")
     } else {
         log.push_str("failed\n")
@@ -294,9 +297,9 @@ fn try_compile(input: &CompileInput, log: &mut String) -> bool {
 }
 
 /// Given a successful header combination, compile the file & find matches.
-fn find_match_data(input: &CompileInput, log: &mut String) -> CompileResult {
+fn find_match_data(input: &CompileInput, log: &mut String, src: &[u8]) -> CompileResult {
     // Find the innermost loops in the file
-    let loop_lines = find_inner_loops(input);
+    let loop_lines = find_inner_loops(input, src);
 
     // Insert SI pragmas before the inner loops
     let src = match insert_pragma(input.file, loop_lines) {
@@ -312,34 +315,30 @@ fn find_match_data(input: &CompileInput, log: &mut String) -> CompileResult {
 }
 
 /// Return a list of line numbers that define innermost loops.
-fn find_inner_loops(input: &CompileInput) -> Vec<usize> {
-    // Compile the file to LLVM IR
-    let clang = get_compile_bin(input, "clang");
-    let mut compile = Command::new(clang)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .arg("-c")
-        .arg(input.file)
-        .args(format_headers(input.headers))
-        .args(["-S", "-emit-llvm", "-g", "-o", "-"])
-        .spawn()
-        .unwrap();
-
+fn find_inner_loops(input: &CompileInput, src: &[u8]) -> Vec<usize> {
     // Run the loop finder
     let loop_finder = &input.config.interface.args["loop_finder"];
     let opt = get_compile_bin(input, "opt");
-    let find = Command::new(opt)
-        .stdin(compile.stdout.take().unwrap())
+    let mut find = Command::new(opt)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .arg(&format!("-load-pass-plugin={}", loop_finder))
         .arg("-passes=print<inner-loop>")
         .args(["-o", "/dev/null"])
-        .output()
+        .spawn()
         .unwrap();
 
-    let _ = compile.wait();
+    // Send the source file
+    let mut stdin = find.stdin.take().unwrap();
+    stdin.write_all(src).unwrap();
+    drop(stdin);
+
+    // Get the output
+    let output = find.wait_with_output().unwrap();
 
     // Parse the results
-    let out = String::from_utf8(find.stderr)
+    let out = String::from_utf8(output.stderr)
         .expect("Failed to parse loop finder output");
     let lines: Vec<_> = out.lines()
                            .map(|l| l.split(" ").collect::<Vec<_>>()[0])
