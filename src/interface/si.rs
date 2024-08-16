@@ -505,7 +505,6 @@ fn loop_info(input: &CompileInput, src: &[u8], _log: &mut String) -> Result<Stri
 fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> InternResult {
     for m in input.data {
         if let Some(entry) = m.downcast_ref::<Match>() {
-            info!("File: {:?}", entry.file);
             // Parse the loop info
             let loop_info = parse_loop_info(&entry.output);
 
@@ -582,8 +581,6 @@ fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> Intern
                 }
 
                 // Check to see if there is debug info
-                println!("{:?}", debug_info);
-                println!("{:?}", (line, col));
                 if let Some(info) = debug_info.get(&(line, col)) {
                     if let Err(e) = input.db.rt.block_on(
                         insert_si_status(conn, match_id, &info)
