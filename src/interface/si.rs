@@ -3,7 +3,11 @@ use super::{
     InternInput, InternResult, MatchData, PreInput, PreprocessResult
 };
 
-use std::{io::{Error, Write}, path::PathBuf, process::{Command, Stdio}, str::FromStr};
+use std::collections::HashMap;
+use std::io::{Error, Write};
+use std::path::PathBuf;
+use std::process::{Command, Stdio};
+use std::str::FromStr;
 use std::fs;
 use lazy_static::lazy_static;
 use log::{error, info};
@@ -20,6 +24,7 @@ struct Match {
 
 /// Values returned from the loop information pass
 #[derive(Debug)]
+#[allow(dead_code)]
 struct LoopInfo {
     line: i64,
     col: i64,
@@ -30,6 +35,18 @@ struct LoopInfo {
     pat_start: Option<i64>,
     pat_step: Option<i64>,
 }
+
+/// SI status.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum SIStatus {
+    FloatingPoint,  // Not allowed because of FP instructions
+    ControlFlow,    // Not allowed becuase of control flow
+    Enabled,        // SI is enabled & allowed. SI will be non zero if cost-effective
+    Disabled,       // Not enabled for this loop
+}
+
+/// Parsed data from the `-debug-only` output.
+type DebugInfo = HashMap<(i64, i64), SIStatus>;
 
 lazy_static! {
     /// Parse the vectorization remark output.
@@ -113,6 +130,15 @@ impl Interface for FindVectorSI {
                  mem         int,
                  arith       int,
                  other       int,
+                 primary key (match_id),
+                 foreign key (match_id) references matches)")
+                .execute(&input.db.pool).await?;
+
+            let _ = sqlx::query(
+                "create table if not exists pattern (
+                 match_id    bigint,
+                 start       int,
+                 stride      int,
                  primary key (match_id),
                  foreign key (match_id) references matches)")
                 .execute(&input.db.pool).await?;
@@ -468,6 +494,9 @@ fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> Intern
             // Parse the loop info
             let loop_info = parse_loop_info(&entry.output);
 
+            // Parse the -debug-only
+            let debug_info = parse_vector_debug(&entry.output);
+
             // Parse the output for vectorization opps
             let pattern = &MATCH_PATTERN;
             for (_body, args) in pattern
@@ -534,9 +563,6 @@ fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> Intern
                         continue;
                     }
                 }
-
-                // Parse the -debug-only
-                // TODO
             }
         }
     }
@@ -688,4 +714,70 @@ async fn insert_mem_pattern(conn: &mut Transaction<'_, Any>, match_id: i64, info
         .await?;
 
     return Ok(());
+}
+
+/// Parse the vector debug information.
+fn parse_vector_debug(input: &str) -> DebugInfo {
+    let mut acc = DebugInfo::new();
+
+    // Find the sections for each loop
+    let name_pattern = Regex::new(r"LV: Checking a loop[^:]*:(\d+):(\d+)\n")
+        .unwrap();
+    let locs: Vec<_> = name_pattern.captures_iter(input).collect();
+    let parts: Vec<_> = locs.iter().map(|c| c.get(0).unwrap()).collect();
+
+    // Return if there are no sections
+    if locs.len() == 0 {
+        return acc;
+    }
+
+    // Find the region bounds between sections
+    let mut regions: Vec<(usize, usize)> = vec![];
+    for i in 1..parts.len()  {
+        let start = parts[i - 1].end();
+        let end = parts[i].start();
+        regions.push((start, end));
+    }
+    // Add the final region
+    regions.push((parts[parts.len() - 1].end(), input.len()));
+
+    // Search for LV(SI) lines in each region
+    let fp_pattern = Regex::new(r"LV\(SI\): Not legal to interpolate due to floating point instructions").unwrap();
+    let cf_pattern = Regex::new(r"LV\(SI\): Not legal to interpolate due to non-interpolatable recipe").unwrap();
+    let en_pattern = Regex::new(r"LV\(SI\): SI enabled").unwrap();
+
+    let mut status: Vec<SIStatus> = vec![];
+    for (start, end) in regions.clone() {
+        let body = &input[start..end];
+        // println!("{}", body);
+
+        if fp_pattern.is_match(body) {
+            status.push(SIStatus::FloatingPoint);
+        }
+
+        else if cf_pattern.is_match(body) {
+            status.push(SIStatus::ControlFlow);
+        }
+
+        else if en_pattern.is_match(body) {
+            status.push(SIStatus::Enabled);
+        }
+
+        else {
+            status.push(SIStatus::Disabled);
+        }
+    }
+
+    // Match locations to statuses
+    assert_eq!(locs.len(), status.len());
+    for i in 0..locs.len() {
+        let line = locs[i].get(1).unwrap().as_str();
+        let line = line.parse().unwrap();
+        let col  = locs[i].get(2).unwrap().as_str();
+        let col  = col.parse().unwrap();
+
+        acc.insert((line, col), status[i].clone());
+    }
+
+    return acc;
 }
