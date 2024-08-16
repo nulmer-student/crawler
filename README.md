@@ -10,6 +10,8 @@ The crawler depends on the following programs:
 - Rust / Cargo
 - Git
 - MariaDB
+- `find`
+- `tar`
 
 After cloning the repository, run the following command to build the crawler.
 

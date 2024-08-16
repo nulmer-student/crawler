@@ -12,6 +12,7 @@ use crate::interface::{self, MatchData};
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::{Arc, Mutex, mpsc};
 use rayon::prelude::*;
 use log::{debug, info, error};
@@ -103,7 +104,19 @@ pub fn mine(directory: &PathBuf, log_file: &PathBuf, config: Config) -> Result<M
     let success: i64 = rx.iter().sum();
     info!("Results: total: {}, successful: {}", total, success);
 
+    // Compress the log file
+    let compress = Command::new("tar")
+        .arg("-czf")
+        .arg(&format!("{}.tar.gz", log_file.to_str().unwrap()))
+        .arg(log_file)
+        .output();
+
+    match compress {
+        Ok(_) => { let _ = fs::remove_file(log_file); }
+        Err(e) => { error!("Failed to compress logfile: {:?}", e); }
+    }
     drop(log);
+
     return Ok(MineResult {
         data: match_data,
         n_files: total,
