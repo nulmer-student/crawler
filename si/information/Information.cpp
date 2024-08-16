@@ -59,7 +59,7 @@ string InfoData::to_string() {
 
   string step = "null";
   if (this->pattern.step.has_value())
-    start = std::to_string(this->pattern.step.value());
+    step = std::to_string(this->pattern.step.value());
 
   acc += format_str("pat_start", start, false);
   acc += format_str("pat_step", step, true);
