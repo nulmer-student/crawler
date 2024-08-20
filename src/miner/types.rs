@@ -1,4 +1,5 @@
 use std::path::{Components, PathBuf};
+use log::warn;
 
 // =============================================================================
 // File
@@ -20,22 +21,26 @@ pub struct File {
 
 impl File {
     /// Create a new file.
-    pub fn new(path: PathBuf) -> Self {
+    pub fn new(path: PathBuf) -> Option<Self> {
         let Some(ext) = path.extension() else {
-            panic!("Missing extension '{}'", path.display());
+            warn!("Missing extension '{}'", path.display());
+            return None;
         };
 
         let kind = match ext.to_str().unwrap() {
             "c" => { FileType::Source },
             "h" => { FileType::Header },
-            _ => { panic!("Unsupported file type: '{}'", path.display()) },
+            _ => {
+                warn!("Unsupported file type: '{}'", path.display());
+                return None;
+            },
         };
 
-        return File { path, kind };
+        return Some(File { path, kind });
     }
 
     /// Create a new file realtive to DIRECTORY.
-    pub fn relative(string: &str, directory: &PathBuf) -> Self {
+    pub fn relative(string: &str, directory: &PathBuf) -> Option<File> {
         let path: PathBuf = PathBuf::from(string)
             .strip_prefix(directory)
             .unwrap()
