@@ -10,7 +10,7 @@ use std::process::{Command, Stdio};
 use std::str::FromStr;
 use std::fs;
 use lazy_static::lazy_static;
-use log::{error, info, warn};
+use log::{error, warn};
 use regex::Regex;
 use sqlx::{self, Row, Transaction};
 use sqlx::Any;

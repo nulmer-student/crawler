@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{Arc, Mutex, mpsc};
 use rayon::prelude::*;
-use log::{debug, info, error};
+use log::{debug, info, error, warn};
 
 pub struct MineResult {
     pub data: Vec<MatchData>,
@@ -30,6 +30,10 @@ pub struct MineResult {
 pub fn mine(directory: &PathBuf, log_file: &PathBuf, config: Config) -> Result<MineResult, ()> {
     // Build the dependency graph
     let dg = DepGraph::new(directory);
+    let Some(dg) = dg else {
+        warn!("Failed to build DP graph");
+        return Err(());
+    };
 
     // Open the log file
     let log = match fs::OpenOptions::new()

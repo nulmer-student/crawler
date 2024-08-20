@@ -7,7 +7,7 @@ use std::path::{Component, PathBuf};
 use std::fs;
 use lazy_static::lazy_static;
 use regex::Regex;
-use log::info;
+use log::{info, warn};
 
 lazy_static! {
     static ref INCLUDE_PATTERN: Regex
@@ -38,12 +38,19 @@ pub struct DepGraph<'a> {
 
 impl<'a> DepGraph<'a> {
     /// Create a new dependency graph rooted at ROOT_DIR.
-    pub fn new(root_dir: &'a PathBuf) -> Self {
+    pub fn new(root_dir: &'a PathBuf) -> Option<Self> {
         info!("Building DP graph");
 
         // Find the source files in the repository
         let src     = find_files(root_dir, "*.c");
         let headers = find_files(root_dir, "*.h");
+
+        // Exit if there are too many files
+        let max_files = 10000;
+        if src.len() > max_files || headers.len() > max_files {
+            warn!("Too many files");
+            return None;
+        }
 
         // Insert all files as nodes
         let mut nodes = HashSet::new();
@@ -105,11 +112,11 @@ impl<'a> DepGraph<'a> {
             }
         }
 
-        return DepGraph {
+        return Some(DepGraph {
             root_dir,
             nodes,
             edges,
-        };
+        });
     }
 
     fn parse_declare(root: &'a PathBuf, file: &File) -> Vec<Declare> {

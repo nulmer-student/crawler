@@ -9,7 +9,7 @@ use rayon::{current_thread_index, prelude::*, ThreadPool};
 use sqlx::{self, Any};
 use log::{info, error};
 use crossbeam::sync::WaitGroup;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::AssertUnwindSafe;
 use std::sync::mpsc;
 use std::time::Instant;
 
