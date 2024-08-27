@@ -1,11 +1,10 @@
 [interface]
 name            = "si"
-args            = { clang = "/path/to/cost/model/clang" }
+args            = { clang = "/path/to/cost/model/bin", loop_finder = "./si/build/lib/libFindInnerLoops.so", info = "./si/build/lib/libInformation.so" }
 
 [miner]
 threads         = 1
 tries           = 10
-timeout         = 1800
 
 [runner]
 threads         = 8
