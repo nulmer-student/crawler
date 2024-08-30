@@ -59,7 +59,7 @@ The fields of the configuration file have the following meanings:
   - `temp_dir`: Directory where repositories are cloned to.
 - Database
   - `user`: Database user.
-  - `password`: Database password. Leave blank if none.
+  - `password`: Database user password. Leave blank if none.
   - `host`: Database host.
   - `database`: Database to use on the host.
 
@@ -98,4 +98,17 @@ The database contains a number of tables by default:
 
 ## Creating the Database
 
-The following commands can be used to initialize the database:
+The following commands can be used to initialize the database with a user named
+"user", and a database named "db":
+
+``` shell
+systemctl enable --now mariadb
+mariadb -e "create database db"
+mariadb -e "create user user@localhost"
+
+# For running the crawler
+mariadb -e "grant all privileges on db.* to user@localhost"
+
+# If you only want to read the data:
+mariadb -e "grant select on db.* to user@localhost"
+```
