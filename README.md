@@ -99,7 +99,7 @@ The database contains a number of tables by default:
 ## Creating the Database
 
 The following commands can be used to initialize the database with a user named
-"user", and a database named "db":
+`user`, and a database named `db`:
 
 ``` shell
 systemctl enable --now mariadb
@@ -111,4 +111,10 @@ mariadb -e "grant all privileges on db.* to user@localhost"
 
 # If you only want to read the data:
 mariadb -e "grant select on db.* to user@localhost"
+```
+
+A database dump can be read into some database `db` with the following command:
+
+``` shell
+mariadb -u user -h localhost db < dump.sql
 ```
