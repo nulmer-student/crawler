@@ -8,6 +8,9 @@ authors = [ "Nathan Ulmer" ]
 name = "crawler_si"
 path = "src/main.rs"
 
+[build-dependencies]
+cmake = "0.1"
+
 [dependencies]
 crawler = { path = "../crawler", version = "0.2.0" }
 regex = "1.10.5"
