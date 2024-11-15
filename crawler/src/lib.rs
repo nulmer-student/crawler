@@ -8,9 +8,8 @@ mod runner;
 use config as crawler_config;
 
 use clap::{arg, Command, ArgMatches};
-use interface::{AnyInterface, Interface};
+use interface::AnyInterface;
 use std::path::PathBuf;
-use std::sync::Arc;
 use log;
 use log4rs::config::{Appender, Config, Root};
 use log4rs::append::{console::{ConsoleAppender, Target}, file::FileAppender};

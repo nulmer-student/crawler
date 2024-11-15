@@ -3,9 +3,8 @@ mod git;
 mod search;
 mod run;
 
-use std::sync::Arc;
-
-use crate::{config::Config, interface::{AnyInterface, Interface}};
+use crate::config::Config;
+use crate::interface::AnyInterface;
 use search::Search;
 use run::run_all;
 

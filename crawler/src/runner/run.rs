@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::interface::{AnyInterface, InitInput, Interface, InternInput};
+use crate::interface::{AnyInterface, InitInput, InternInput};
 use crate::miner::{mine, MineResult};
 use super::db;
 use super::git::RepoData;
@@ -10,7 +10,7 @@ use sqlx::{self, Any};
 use log::{info, error};
 use crossbeam::sync::WaitGroup;
 use std::panic::AssertUnwindSafe;
-use std::sync::{mpsc, Arc};
+use std::sync::mpsc;
 use std::time::Instant;
 
 // =============================================================================

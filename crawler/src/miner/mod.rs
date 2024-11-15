@@ -4,11 +4,11 @@ mod extract;
 mod select;
 mod types;
 
-use crate::interface::{AnyInterface, Interface};
+use crate::interface::AnyInterface;
 use compile::Compiler;
 use dep_graph::DepGraph;
 use crate::config::Config;
-use crate::interface::{self, MatchData};
+use crate::interface::MatchData;
 
 use std::fs;
 use std::io::Write;
