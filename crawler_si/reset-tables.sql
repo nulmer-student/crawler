@@ -1,0 +1,10 @@
+drop table if exists si_info;
+drop table if exists si_info_types;
+drop table if exists pattern;
+drop table if exists ir_mix;
+drop table if exists remarks;
+drop table if exists matches;
+drop table if exists files;
+drop table if exists stats;
+drop table if exists mined;
+drop table if exists repos;
