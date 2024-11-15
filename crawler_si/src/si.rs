@@ -1,4 +1,4 @@
-use super::{
+use crawler::interface::{
     InitInput, InitResult, CompileInput, CompileResult, Interface,
     InternInput, InternResult, MatchData, PreInput, PreprocessResult
 };

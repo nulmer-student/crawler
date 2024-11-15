@@ -4,6 +4,7 @@ mod extract;
 mod select;
 mod types;
 
+use crate::interface::{AnyInterface, Interface};
 use compile::Compiler;
 use dep_graph::DepGraph;
 use crate::config::Config;
@@ -27,7 +28,7 @@ pub struct MineResult {
 /// Build a dependency graph of the source an header files in DIRECTORY.
 ///
 /// Currently, only `*.c` and `*.h` files are supported.
-pub fn mine(directory: &PathBuf, log_file: &PathBuf, config: Config) -> Result<MineResult, ()> {
+pub fn mine(directory: &PathBuf, log_file: &PathBuf, config: Config, interface: AnyInterface) -> Result<MineResult, ()> {
     // Build the dependency graph
     let dg = DepGraph::new(directory);
     let Some(dg) = dg else {
@@ -59,9 +60,6 @@ pub fn mine(directory: &PathBuf, log_file: &PathBuf, config: Config) -> Result<M
             let tx = tx.clone();
 
             let result = std::panic::catch_unwind(|| {
-                // Load the interface
-                let interface = interface::get_interface(&config.interface.name);
-
                 // Try to compile the file
                 let mut compiler = Compiler::new(
                     file.clone(),
@@ -130,7 +128,7 @@ pub fn mine(directory: &PathBuf, log_file: &PathBuf, config: Config) -> Result<M
 }
 
 /// Mine a single repository, using a dedicated thread pool.
-pub fn mine_one(directory: PathBuf, config: Config) {
+pub fn mine_one(directory: PathBuf, config: Config, interface: AnyInterface) {
     rayon::ThreadPoolBuilder::new()
         .num_threads(config.miner.threads)
         .thread_name(|i| format!("mine-{}", i))
@@ -138,5 +136,5 @@ pub fn mine_one(directory: PathBuf, config: Config) {
         .expect("Failed to create miner thread pool");
 
     let log_file = config.runner.log_dir.join("repo.log");
-    let _ = mine(&directory, &log_file, config);
+    let _ = mine(&directory, &log_file, config, interface);
 }

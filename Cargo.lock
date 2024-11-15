@@ -334,6 +334,11 @@ name = "crawler_si"
 version = "0.2.0"
 dependencies = [
  "crawler",
+ "lazy_static",
+ "log",
+ "regex",
+ "sqlx",
+ "tokio",
 ]
 
 [[package]]

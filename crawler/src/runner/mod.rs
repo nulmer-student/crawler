@@ -3,16 +3,18 @@ mod git;
 mod search;
 mod run;
 
-use crate::config::Config;
+use std::sync::Arc;
+
+use crate::{config::Config, interface::{AnyInterface, Interface}};
 use search::Search;
 use run::run_all;
 
-pub fn crawl(config: &Config) {
+pub fn crawl(config: &Config, interface: AnyInterface) {
     // Search for matching repositories
     search(config);
 
     // Mine each repository
-    run_all(config);
+    run_all(config, interface);
 }
 
 pub fn search(config: &Config) {

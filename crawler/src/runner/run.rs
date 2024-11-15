@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::interface::{get_interface, InitInput, InternInput};
+use crate::interface::{AnyInterface, InitInput, Interface, InternInput};
 use crate::miner::{mine, MineResult};
 use super::db;
 use super::git::RepoData;
@@ -10,19 +10,18 @@ use sqlx::{self, Any};
 use log::{info, error};
 use crossbeam::sync::WaitGroup;
 use std::panic::AssertUnwindSafe;
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc};
 use std::time::Instant;
 
 // =============================================================================
 // Top-Level Runner
 // =============================================================================
 
-pub fn run_all(config: &Config) {
+pub fn run_all(config: &Config, interface: AnyInterface) {
     let db = db::Database::new(config);
 
     // Call the user supplied init function
     info!("Initializing instance");
-    let interface = get_interface(&config.interface.name);
     let input = InitInput { config, db: &db };
     match interface.init(input) {
         Ok(_) => {},
@@ -60,7 +59,7 @@ pub fn run_all(config: &Config) {
             // Mine a single repo
             let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
                 let pool = &miner_pools[current_thread_index().unwrap()];
-                let mut runner = Runner::new(config, pool, &db, repo.clone());
+                let mut runner = Runner::new(config, pool, &db, repo.clone(), interface.clone());
                 runner.run();
             }));
 
@@ -99,12 +98,13 @@ struct Runner<'a> {
     db: &'a db::Database,
     repo: RepoData,
     start: Instant,
+    interface: AnyInterface,
 }
 
 impl<'a> Runner<'a> {
     /// Create a new runner
-    pub fn new(config: &'a Config, pool: &'a ThreadPool, db: &'a db::Database, repo: RepoData) -> Self {
-        return Self { config, pool, db, repo, start: Instant::now() };
+    pub fn new(config: &'a Config, pool: &'a ThreadPool, db: &'a db::Database, repo: RepoData, interface: AnyInterface) -> Self {
+        return Self { config, pool, db, repo, start: Instant::now(), interface };
     }
 
     /// Mine this repo
@@ -127,9 +127,10 @@ impl<'a> Runner<'a> {
 
             let config = self.config.clone();
             let wg = wg.clone();
+            let interface = self.interface.clone();
             self.pool.spawn(move || {
                 // Run the miner
-                if let Ok(result) = mine(&dir, &log_path, config) {
+                if let Ok(result) = mine(&dir, &log_path, config, interface) {
                     match tx.send(result) {
                         Ok(_) => {},
                         Err(e) => {
@@ -161,8 +162,7 @@ impl<'a> Runner<'a> {
         };
 
         // Call the user-supplied intern function
-        let interface = get_interface(&self.config.interface.name);
-        match interface.intern(input) {
+        match self.interface.intern(input) {
             Ok(_) => {},
             Err(e) => error!("Failed to intern: {:?}", e),
         }
