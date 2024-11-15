@@ -104,7 +104,7 @@ fn setup_logging(config: &crawler_config::Config) -> log4rs::Handle {
         .expect("failed to initialize logger");
 }
 
-fn main() {
+pub fn run() {
     // Parse arguments
     let matches = cli().get_matches();
 

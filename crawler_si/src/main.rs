@@ -1,3 +1,6 @@
+use crawler::*;
+
 fn main() {
-    println!("Hello, world!");
+    // Run the crawler
+    run();
 }

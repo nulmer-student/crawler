@@ -333,20 +333,7 @@ dependencies = [
 name = "crawler_si"
 version = "0.2.0"
 dependencies = [
- "chrono",
- "clap",
- "crossbeam",
- "lazy_static",
- "log",
- "log4rs",
- "rayon",
- "regex",
- "reqwest",
- "serde",
- "serde_json",
- "sqlx",
- "tokio",
- "toml",
+ "crawler",
 ]
 
 [[package]]
