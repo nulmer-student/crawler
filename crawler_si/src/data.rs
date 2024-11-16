@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use crate::loops::Loops;
+
 /// Parsed data from the `-debug-only` output.
 pub type DebugInfo = HashMap<(i64, i64), SIStatus>;
 
@@ -18,5 +20,6 @@ pub enum SIStatus {
 pub struct Match {
     pub file: PathBuf,
     pub output: String,
+    pub loops: Loops,
 }
 

@@ -102,14 +102,23 @@ pub fn find_match_data(input: &CompileInput, log: &mut String, src: &[u8]) -> Co
         }
     }
 
-    // // Compile to find all information
-    // return find_matches(input, src, log);
-    // TODO: Find matches
-    return CompileResult { data: Err(()), to_log: "".to_string() };
+    // Compile with SI & find remarks
+    let Ok(output) = find_matches(input, pragma_src, log) else {
+        return CompileResult { data: Err(()), to_log: log.to_string() };
+    };
+
+    let result: MatchData = Box::new(Match {
+        // Return the relative path
+        file: input.file.strip_prefix(input.root).unwrap().to_path_buf(),
+        output,
+        loops,
+    });
+
+    return CompileResult { data: Ok(result), to_log: log.to_string() }
 }
 
 /// Find the SI data for a given file.
-fn find_matches(input: &CompileInput, src: String, log: &mut String) -> CompileResult {
+fn find_matches(input: &CompileInput, src: String, log: &mut String) -> Result<String, ()> {
     let mut compile = Command::new("timeout")
         .arg("10")
         .arg(get_compile_bin("clang"))
@@ -145,7 +154,7 @@ fn find_matches(input: &CompileInput, src: String, log: &mut String) -> CompileR
         Ok(s) => s,
         Err(e) => {
             error!("Failed to read match data: {}", e);
-            return CompileResult { data: Err(()), to_log: log.to_string() };
+            return Err(());
         },
     };
     log.push_str("\nOutput:\n");
@@ -155,27 +164,7 @@ fn find_matches(input: &CompileInput, src: String, log: &mut String) -> CompileR
 
     // If the compilation was successful, return the stderr
     if out.status.success() {
-        // Run the loop info pass
-        // FIXME: Add loop info
-        let info = "".to_string();
-        // let info = match loop_info(&out.stdout, log) {
-        //     Ok(s) => s,
-        //     Err(e) => {
-        //         error!("Failed to find loop info: {:?}", e);
-        //         "".to_string()
-        //     }
-        // };
-        log.push_str(&info);
-        log.push_str("------------------------------\n");
-
-        // Return the result
-        let result: MatchData = Box::new(Match {
-            // Return the relative path
-            file: input.file.strip_prefix(input.root).unwrap().to_path_buf(),
-            output: output + &info,
-        });
-        log.push_str("success\n");
-        return CompileResult { data: Ok(result), to_log: log.to_string() };
+        return Ok(output);
     }
 
     // If the compilation timed out, print so
@@ -187,5 +176,5 @@ fn find_matches(input: &CompileInput, src: String, log: &mut String) -> CompileR
 
     // Failed, this shouldn't happen since we already tried to compile
     log.push_str("failed\n");
-    return CompileResult { data: Err(()), to_log: log.to_string() };
+    return Err(());
 }
