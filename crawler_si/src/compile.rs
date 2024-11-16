@@ -83,7 +83,7 @@ pub fn try_compile(input: &CompileInput, log: &mut String) -> Result<Vec<u8>, ()
 /// Given a successful header combination, compile the file & find matches.
 pub fn find_match_data(input: &CompileInput, log: &mut String, src: &[u8]) -> CompileResult {
     // Find the innermost loops in the file
-    let loop_lines = find_inner_loops(input, src);
+    let loop_lines = find_inner_loops(src);
 
     // Insert SI pragmas before the inner loops
     let src = match insert_pragma(input.file, loop_lines) {
@@ -99,7 +99,7 @@ pub fn find_match_data(input: &CompileInput, log: &mut String, src: &[u8]) -> Co
 }
 
 /// Return a list of line numbers that define innermost loops.
-fn find_inner_loops(input: &CompileInput, src: &[u8]) -> Vec<usize> {
+fn find_inner_loops(src: &[u8]) -> Vec<usize> {
     // Run the loop finder
     let loop_finder = env!("CRAWLER_SI_LOOPS");
     let opt = get_compile_bin("opt");
@@ -216,7 +216,7 @@ fn find_matches(input: &CompileInput, src: String, log: &mut String) -> CompileR
     // If the compilation was successful, return the stderr
     if out.status.success() {
         // Run the loop info pass
-        let info = match loop_info(input, &out.stdout, log) {
+        let info = match loop_info(&out.stdout, log) {
             Ok(s) => s,
             Err(e) => {
                 error!("Failed to find loop info: {:?}", e);
@@ -249,7 +249,7 @@ fn find_matches(input: &CompileInput, src: String, log: &mut String) -> CompileR
 }
 
 /// Find loop information using the "Information" pass
-fn loop_info(input: &CompileInput, src: &[u8], _log: &mut String) -> Result<String, ()> {
+fn loop_info(src: &[u8], _log: &mut String) -> Result<String, ()> {
     // Spawn opt with the information pass
     let info_pass = env!("CRAWLER_SI_INFO");
     let opt = get_compile_bin("opt");
