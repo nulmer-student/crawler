@@ -1,10 +1,11 @@
 mod si;
+mod interface;
 
 use std::sync::Arc;
 
 use crawler::run;
 use crawler::interface::*;
-use si::FindVectorSI;
+use interface::FindVectorSI;
 
 fn main() {
     // Run the crawler with the SI interface
