@@ -7,7 +7,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::io::{Error, Write};
-use log::error;
+use log::{debug, error};
 use regex::Regex;
 
 /// Values returned from the loop information pass
@@ -63,8 +63,9 @@ impl Loops {
     }
 
     fn update_row(&mut self, i: usize, new_row: usize) {
+        self.by_pragma.remove(&self.loops[i].post_row);
         self.loops[i].post_row = new_row;
-        self.by_pragma.insert(i, new_row);
+        self.by_pragma.insert(new_row, i);
     }
 
     /// Find the innermost loops in SRC.
@@ -187,9 +188,19 @@ impl Loops {
     }
 
     pub fn opt_info(&mut self, output: &str, log: &mut String) {
-        // Find the SI status
+        // Find the SI status & match with loops
         let debug_info = parse_vector_debug(output);
-        println!("{:?}", debug_info);
+        for ((row, _col), status) in debug_info.iter() {
+            if let Some(i) = self.by_pragma.get(&(*row as usize)) {
+                debug!("SI info for loop at {i}");
+                self.loops[*i].si_status = Some(status.clone());
+            }
+        }
+
+        println!("{:#?}", &self);
+
+        // Parse remarks
+        // TODO
     }
 }
 
