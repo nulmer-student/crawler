@@ -2,7 +2,8 @@ use crawler::interface::{
     InitInput, InitResult, CompileInput, CompileResult, Interface,
     InternInput, InternResult, PreInput, PreprocessResult
 };
-use crate::si::*;
+use crate::compile::{try_compile, find_match_data};
+use crate::intern::intern_matches;
 
 use log::error;
 

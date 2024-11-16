@@ -1,5 +1,8 @@
-mod si;
+mod compile;
+mod data;
 mod interface;
+mod intern;
+mod pattern;
 
 use std::sync::Arc;
 
