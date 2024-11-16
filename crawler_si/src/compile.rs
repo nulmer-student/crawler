@@ -107,6 +107,8 @@ pub fn find_match_data(input: &CompileInput, log: &mut String, src: &[u8]) -> Co
         return CompileResult { data: Err(()), to_log: log.to_string() };
     };
 
+    // Parse the remarks & debug info
+
     let result: MatchData = Box::new(Match {
         // Return the relative path
         file: input.file.strip_prefix(input.root).unwrap().to_path_buf(),

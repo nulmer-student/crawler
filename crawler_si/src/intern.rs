@@ -13,7 +13,6 @@ pub fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> In
     for m in input.data {
         if let Some(entry) = m.downcast_ref::<Match>() {
             // Parse the loop info
-            // let loop_info = parse_loop_info(&entry.output);
             let loop_info = vec!();
 
             // Parse the -debug-only

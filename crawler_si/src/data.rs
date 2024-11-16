@@ -15,6 +15,13 @@ pub enum SIStatus {
     Disabled,       // Not enabled for this loop
 }
 
+#[derive(Debug)]
+pub struct Remark {
+    pub vector: i64,
+    pub width: i64,
+    pub si: i64,
+}
+
 /// Communication between the compile & intern phases.
 #[derive(Debug)]
 pub struct Match {

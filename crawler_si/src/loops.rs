@@ -1,4 +1,5 @@
 use crate::compile::get_compile_bin;
+use crate::data::{Remark, SIStatus};
 use crate::pattern::{PRAGMA, LOOP_PATTERN, INFO_PATTERN};
 
 use std::collections::HashMap;
@@ -28,11 +29,16 @@ pub struct Loop {
     col: usize,
     post_row: usize, // Row after inserting the pragma
     info: Option<LoopInfo>,
+    remarks: Option<Remark>,
+    si_status: Option<SIStatus>,
 }
 
 impl Loop {
     pub fn new(row: usize, col: usize) -> Self {
-        Self { row, col, post_row: row, info: None }
+        Self {
+            row, col, post_row: row,
+            info: None, remarks: None, si_status: None,
+        }
     }
 }
 
@@ -169,7 +175,6 @@ impl Loops {
             }
         }
 
-        println!("{:?}", &self);
         return Ok(());
     }
 }
