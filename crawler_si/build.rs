@@ -30,16 +30,17 @@ fn main() {
     depend_on_env(LLVM_DIR);
 
     // Build the required LLVM passes
-    let dir = env::var(LLVM_DIR).unwrap();
-    echo!("Building LLVM passes using: {dir}");
+    let llvm_dir = env::var(LLVM_DIR).unwrap();
+    echo!("Building LLVM passes using: {llvm_dir}");
     let dst = Config::new("passes")
-        .configure_arg(&format!("-DLT_LLVM_INSTALL_DIR={dir}"))
+        .configure_arg(&format!("-DLT_LLVM_INSTALL_DIR={llvm_dir}"))
         .build_target("all")
         .build();
     println!("cargo:rustc-link-search=native={}", dst.display());
 
     // Create environment variables for the pass binaries
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    export_env("CRAWLER_SI_LOOPS", out_dir.join("lib/libFindInnerLoops.so"));
-    export_env("CRAWLER_SI_INFO", out_dir.join("lib/libInformation.so"));
+    let bin_dir = dst.as_path().join("build/lib");
+    export_env("CRAWLER_SI_LOOPS", bin_dir.join("libFindInnerLoops.so"));
+    export_env("CRAWLER_SI_INFO", bin_dir.join("libInformation.so"));
+    export_env("CRAWLER_SI_LLVM", PathBuf::from(llvm_dir).join("bin"));
 }

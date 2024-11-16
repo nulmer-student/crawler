@@ -225,9 +225,8 @@ impl Interface for FindVectorSI {
 // =============================================================================
 
 /// Get the path of a binary in the provied LLVM directory.
-fn get_compile_bin(input: &CompileInput, bin: &str) -> PathBuf {
-    let dir = PathBuf::from_str(&input.config.interface.args["llvm"]).unwrap();
-
+fn get_compile_bin(bin: &str) -> PathBuf {
+    let dir = PathBuf::from_str(env!("CRAWLER_SI_LLVM")).unwrap();
     return dir.join(bin);
 }
 
@@ -241,7 +240,7 @@ fn format_headers(headers: &Vec<PathBuf>) -> Vec<String> {
 /// Return true if the compilation succeeded, & return the output.
 fn try_compile(input: &CompileInput, log: &mut String) -> Result<Vec<u8>, ()> {
     // Get the path to clang from the args
-    let clang = get_compile_bin(input, "clang");
+    let clang = get_compile_bin("clang");
     let headers = format_headers(input.headers);
 
     // Run a quick compilation so we can check for errors
@@ -317,8 +316,8 @@ fn find_match_data(input: &CompileInput, log: &mut String, src: &[u8]) -> Compil
 /// Return a list of line numbers that define innermost loops.
 fn find_inner_loops(input: &CompileInput, src: &[u8]) -> Vec<usize> {
     // Run the loop finder
-    let loop_finder = &input.config.interface.args["loop_finder"];
-    let opt = get_compile_bin(input, "opt");
+    let loop_finder = env!("CRAWLER_SI_LOOPS");
+    let opt = get_compile_bin("opt");
     let mut find = Command::new(opt)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -388,7 +387,7 @@ fn is_for_loop(str: &str) -> bool {
 fn find_matches(input: &CompileInput, src: String, log: &mut String) -> CompileResult {
     let mut compile = Command::new("timeout")
         .arg("10")
-        .arg(get_compile_bin(input, "clang"))
+        .arg(get_compile_bin("clang"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -467,8 +466,8 @@ fn find_matches(input: &CompileInput, src: String, log: &mut String) -> CompileR
 /// Find loop information using the "Information" pass
 fn loop_info(input: &CompileInput, src: &[u8], _log: &mut String) -> Result<String, ()> {
     // Spawn opt with the information pass
-    let info_pass = &input.config.interface.args["info"];
-    let opt = get_compile_bin(input, "opt");
+    let info_pass = env!("CRAWLER_SI_INFO");
+    let opt = get_compile_bin("opt");
     let mut cmd = Command::new(opt)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
