@@ -1,6 +1,7 @@
 use crawler::interface::{InternInput, InternResult};
-use crate::data::{DebugInfo, LoopInfo, Match, SIStatus};
-use crate::pattern::{MATCH_PATTERN, INFO_PATTERN};
+use crate::data::{DebugInfo, Match, SIStatus};
+use crate::loops::LoopInfo;
+use crate::pattern::MATCH_PATTERN;
 
 use std::path::PathBuf;
 use log::{error, warn};
@@ -12,7 +13,8 @@ pub fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> In
     for m in input.data {
         if let Some(entry) = m.downcast_ref::<Match>() {
             // Parse the loop info
-            let loop_info = parse_loop_info(&entry.output);
+            // let loop_info = parse_loop_info(&entry.output);
+            let loop_info = vec!();
 
             // Parse the -debug-only
             let debug_info = parse_vector_debug(&entry.output);
@@ -182,37 +184,6 @@ async fn insert_remarks(conn: &mut Transaction<'_, Any>, match_id: i64, vec: i64
         .await?;
 
     return Ok(());
-}
-
-/// Return None if input is null, parse otherwise.
-fn loop_info_option(input: &str) -> Option<i64> {
-    match input {
-        "null" => None,
-        other => Some(other.parse::<i64>().unwrap()),
-    }
-}
-
-/// Parse the loop info from INPUT.
-fn parse_loop_info(input: &str) -> Vec<LoopInfo> {
-    let mut acc = vec![];
-
-    let pattern = &INFO_PATTERN;
-    for (_body, [line, col, ir_count, ir_mem, ir_arith, ir_other, pat_start, pat_step])
-        in pattern.captures_iter(input).map(|c| c.extract::<8>()) {
-
-        acc.push(LoopInfo {
-            line: line.parse::<i64>().unwrap(),
-            col: col.parse::<i64>().unwrap(),
-            ir_count: ir_count.parse::<i64>().unwrap(),
-            ir_mem: ir_mem.parse::<i64>().unwrap(),
-            ir_arith: ir_arith.parse::<i64>().unwrap(),
-            ir_other: ir_other.parse::<i64>().unwrap(),
-            pat_start: loop_info_option(pat_start),
-            pat_step: loop_info_option(pat_step),
-        });
-    }
-
-    return acc;
 }
 
 /// Search a list of LoopInfo for a loop that matches LINE & COL.

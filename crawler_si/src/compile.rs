@@ -85,13 +85,22 @@ pub fn find_match_data(input: &CompileInput, log: &mut String, src: &[u8]) -> Co
     let mut loops = Loops::inner_loops(src);
 
     // Insert SI pragmas before the inner loops
-    let src = match loops.insert_pragma(input.file) {
+    let pragma_src = match loops.insert_pragma(input.file) {
         Ok(s) => s,
         Err(e) => {
             error!("Failed to insert pragma: {:?}", e);
             return CompileResult { data: Err(()), to_log: log.to_string() };
         },
     };
+
+    // Find the loop info before optimization
+    match loops.loop_info(src, log) {
+        Ok(_) => {},
+        Err(_) => {
+            error!("Failed to find loop info");
+            return CompileResult { data: Err(()), to_log: log.to_string() };
+        }
+    }
 
     // // Compile to find all information
     // return find_matches(input, src, log);
@@ -147,13 +156,15 @@ fn find_matches(input: &CompileInput, src: String, log: &mut String) -> CompileR
     // If the compilation was successful, return the stderr
     if out.status.success() {
         // Run the loop info pass
-        let info = match loop_info(&out.stdout, log) {
-            Ok(s) => s,
-            Err(e) => {
-                error!("Failed to find loop info: {:?}", e);
-                "".to_string()
-            }
-        };
+        // FIXME: Add loop info
+        let info = "".to_string();
+        // let info = match loop_info(&out.stdout, log) {
+        //     Ok(s) => s,
+        //     Err(e) => {
+        //         error!("Failed to find loop info: {:?}", e);
+        //         "".to_string()
+        //     }
+        // };
         log.push_str(&info);
         log.push_str("------------------------------\n");
 
@@ -177,37 +188,4 @@ fn find_matches(input: &CompileInput, src: String, log: &mut String) -> CompileR
     // Failed, this shouldn't happen since we already tried to compile
     log.push_str("failed\n");
     return CompileResult { data: Err(()), to_log: log.to_string() };
-}
-
-/// Find loop information using the "Information" pass
-fn loop_info(src: &[u8], _log: &mut String) -> Result<String, ()> {
-    // Spawn opt with the information pass
-    let info_pass = env!("CRAWLER_SI_INFO");
-    let opt = get_compile_bin("opt");
-    let mut cmd = Command::new(opt)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .arg(&format!("-load-pass-plugin={}", info_pass))
-        .arg("-passes=print<info>")
-        .args(["-o", "/dev/null"])
-        .spawn()
-        .unwrap();
-
-    // Send the optimized code to stdin
-    let mut stdin = cmd.stdin.take().unwrap();
-    stdin.write_all(src).unwrap();
-    drop(stdin);
-
-    // Get the output
-    let output = cmd.wait_with_output().unwrap();
-    let info = match String::from_utf8(output.stderr) {
-        Ok(s) => s,
-        Err(e) => {
-            error!("Failed to read information output: {:?}", e);
-            return Err(());
-        },
-    };
-
-    return Ok(info);
 }
