@@ -5,7 +5,6 @@ use crate::pattern::MATCH_PATTERN;
 
 use std::path::PathBuf;
 use log::{error, warn};
-use regex::Regex;
 use sqlx::{self, Row, Transaction};
 use sqlx::Any;
 
@@ -16,7 +15,8 @@ pub fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> In
             let loop_info = vec!();
 
             // Parse the -debug-only
-            let debug_info = parse_vector_debug(&entry.output);
+            // let debug_info = parse_vector_debug(&entry.output);
+            let debug_info: DebugInfo = DebugInfo::new();
 
             // Parse the output for vectorization opps
             let pattern = &MATCH_PATTERN;
@@ -220,71 +220,6 @@ async fn insert_mem_pattern(conn: &mut Transaction<'_, Any>, match_id: i64, info
         .await?;
 
     return Ok(());
-}
-
-/// Parse the vector debug information.
-fn parse_vector_debug(input: &str) -> DebugInfo {
-    let mut acc = DebugInfo::new();
-
-    // Find the sections for each loop
-    let name_pattern = Regex::new(r"LV: Checking a loop[^:]*:(\d+):(\d+)[^\n]*\n")
-        .unwrap();
-    let locs: Vec<_> = name_pattern.captures_iter(input).collect();
-    let parts: Vec<_> = locs.iter().map(|c| c.get(0).unwrap()).collect();
-
-    // Return if there are no sections
-    if locs.len() == 0 {
-        return acc;
-    }
-
-    // Find the region bounds between sections
-    let mut regions: Vec<(usize, usize)> = vec![];
-    for i in 1..parts.len()  {
-        let start = parts[i - 1].end();
-        let end = parts[i].start();
-        regions.push((start, end));
-    }
-    // Add the final region
-    regions.push((parts[parts.len() - 1].end(), input.len()));
-
-    // Search for LV(SI) lines in each region
-    let fp_pattern = Regex::new(r"LV\(SI\): Not legal to interpolate due to floating point instructions").unwrap();
-    let cf_pattern = Regex::new(r"LV\(SI\): Not legal to interpolate due to non-interpolatable recipe").unwrap();
-    let en_pattern = Regex::new(r"LV\(SI\): SI enabled").unwrap();
-
-    let mut status: Vec<SIStatus> = vec![];
-    for (start, end) in regions.clone() {
-        let body = &input[start..end];
-
-        if fp_pattern.is_match(body) {
-            status.push(SIStatus::FloatingPoint);
-        }
-
-        else if cf_pattern.is_match(body) {
-            status.push(SIStatus::ControlFlow);
-        }
-
-        else if en_pattern.is_match(body) {
-            status.push(SIStatus::Enabled);
-        }
-
-        else {
-            status.push(SIStatus::Disabled);
-        }
-    }
-
-    // Match locations to statuses
-    assert_eq!(locs.len(), status.len());
-    for i in 0..locs.len() {
-        let line = locs[i].get(1).unwrap().as_str();
-        let line = line.parse().unwrap();
-        let col  = locs[i].get(2).unwrap().as_str();
-        let col  = col.parse().unwrap();
-
-        acc.insert((line, col), status[i].clone());
-    }
-
-    return acc;
 }
 
 /// Insert the IR mix into the database.

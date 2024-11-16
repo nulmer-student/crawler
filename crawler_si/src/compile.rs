@@ -108,6 +108,7 @@ pub fn find_match_data(input: &CompileInput, log: &mut String, src: &[u8]) -> Co
     };
 
     // Parse the remarks & debug info
+    loops.opt_info(&output, log);
 
     let result: MatchData = Box::new(Match {
         // Return the relative path

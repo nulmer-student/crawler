@@ -1,5 +1,5 @@
 use crate::compile::get_compile_bin;
-use crate::data::{Remark, SIStatus};
+use crate::data::{DebugInfo, Remark, SIStatus};
 use crate::pattern::{PRAGMA, LOOP_PATTERN, INFO_PATTERN};
 
 use std::collections::HashMap;
@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::io::{Error, Write};
 use log::error;
+use regex::Regex;
 
 /// Values returned from the loop information pass
 #[derive(Debug)]
@@ -46,6 +47,7 @@ impl Loop {
 pub struct Loops {
     loops: Vec<Loop>,
     by_original: HashMap<usize, usize>,
+    by_pragma: HashMap<usize, usize>,
 }
 
 impl Loops {
@@ -57,7 +59,12 @@ impl Loops {
             by_original.insert(l.row, i);
         }
 
-        Self { loops, by_original }
+        Self { loops, by_original: by_original.clone(), by_pragma: by_original }
+    }
+
+    fn update_row(&mut self, i: usize, new_row: usize) {
+        self.loops[i].post_row = new_row;
+        self.by_pragma.insert(i, new_row);
     }
 
     /// Find the innermost loops in SRC.
@@ -123,7 +130,8 @@ impl Loops {
                         acc.push_str(PRAGMA);
 
                         // Adjust the loop lines
-                        self.loops[pragma_i - 1].post_row += delta;
+                        let row = self.loops[pragma_i - 1].row + delta;
+                        self.update_row(pragma_i - 1, row);
                         delta += 1;
                     }
                 }
@@ -177,8 +185,13 @@ impl Loops {
 
         return Ok(());
     }
-}
 
+    pub fn opt_info(&mut self, output: &str, log: &mut String) {
+        // Find the SI status
+        let debug_info = parse_vector_debug(output);
+        println!("{:?}", debug_info);
+    }
+}
 
 /// Check if the given string contains a definition for a "for" loop.
 fn is_for_loop(str: &str) -> bool {
@@ -214,4 +227,69 @@ fn loop_info_option(input: &str) -> Option<i64> {
         "null" => None,
         other => Some(other.parse::<i64>().unwrap()),
     }
+}
+
+/// Parse the vector debug information.
+fn parse_vector_debug(input: &str) -> DebugInfo {
+    let mut acc = DebugInfo::new();
+
+    // Find the sections for each loop
+    let name_pattern = Regex::new(r"LV: Checking a loop[^:]*:(\d+):(\d+)[^\n]*\n")
+        .unwrap();
+    let locs: Vec<_> = name_pattern.captures_iter(input).collect();
+    let parts: Vec<_> = locs.iter().map(|c| c.get(0).unwrap()).collect();
+
+    // Return if there are no sections
+    if locs.len() == 0 {
+        return acc;
+    }
+
+    // Find the region bounds between sections
+    let mut regions: Vec<(usize, usize)> = vec![];
+    for i in 1..parts.len()  {
+        let start = parts[i - 1].end();
+        let end = parts[i].start();
+        regions.push((start, end));
+    }
+    // Add the final region
+    regions.push((parts[parts.len() - 1].end(), input.len()));
+
+    // Search for LV(SI) lines in each region
+    let fp_pattern = Regex::new(r"LV\(SI\): Not legal to interpolate due to floating point instructions").unwrap();
+    let cf_pattern = Regex::new(r"LV\(SI\): Not legal to interpolate due to non-interpolatable recipe").unwrap();
+    let en_pattern = Regex::new(r"LV\(SI\): SI enabled").unwrap();
+
+    let mut status: Vec<SIStatus> = vec![];
+    for (start, end) in regions.clone() {
+        let body = &input[start..end];
+
+        if fp_pattern.is_match(body) {
+            status.push(SIStatus::FloatingPoint);
+        }
+
+        else if cf_pattern.is_match(body) {
+            status.push(SIStatus::ControlFlow);
+        }
+
+        else if en_pattern.is_match(body) {
+            status.push(SIStatus::Enabled);
+        }
+
+        else {
+            status.push(SIStatus::Disabled);
+        }
+    }
+
+    // Match locations to statuses
+    assert_eq!(locs.len(), status.len());
+    for i in 0..locs.len() {
+        let line = locs[i].get(1).unwrap().as_str();
+        let line = line.parse().unwrap();
+        let col  = locs[i].get(2).unwrap().as_str();
+        let col  = col.parse().unwrap();
+
+        acc.insert((line, col), status[i].clone());
+    }
+
+    return acc;
 }
