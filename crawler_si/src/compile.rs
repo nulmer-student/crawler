@@ -113,7 +113,6 @@ pub fn find_match_data(input: &CompileInput, log: &mut String, src: &[u8]) -> Co
     let result: MatchData = Box::new(Match {
         // Return the relative path
         file: input.file.strip_prefix(input.root).unwrap().to_path_buf(),
-        output,
         loops,
     });
 

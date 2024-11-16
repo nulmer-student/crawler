@@ -1,7 +1,6 @@
 use crawler::interface::{InternInput, InternResult};
-use crate::data::{DebugInfo, Match, SIStatus};
+use crate::data::{Match, SIStatus};
 use crate::loops::LoopInfo;
-use crate::pattern::MATCH_PATTERN;
 
 use std::path::PathBuf;
 use log::{error, warn};
@@ -11,26 +10,9 @@ use sqlx::Any;
 pub fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> InternResult {
     for m in input.data {
         if let Some(entry) = m.downcast_ref::<Match>() {
-            // Parse the loop info
-            let loop_info = vec!();
-
-            // Parse the -debug-only
-            // let debug_info = parse_vector_debug(&entry.output);
-            let debug_info: DebugInfo = DebugInfo::new();
-
-            // Parse the output for vectorization opps
-            let pattern = &MATCH_PATTERN;
-            for (_body, args) in pattern
-                .captures_iter(&entry.output).map(|c| c.extract::<5>())
-            {
-                let args: [i64; 5] = args
-                    .iter()
-                    .map(|a| a.parse::<i64>().unwrap())
-                    .collect::<Vec<i64>>()
-                    .try_into()
-                    .unwrap();
-                let line = args[0];
-                let col  = args[1];
+            for l in entry.loops.matches_iter() {
+                let line = l.row as i64;
+                let col = l.col as i64;
 
                 // Add the file to the files table
                 let file_id = input.db.rt.block_on(ensure_file(
@@ -61,18 +43,22 @@ pub fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> In
                 }
 
                 // Insert vector remarks
-                if let Err(e) = input.db.rt.block_on(
-                    insert_remarks(conn, match_id, args[2], args[3], args[4])
-                ) {
-                    error!("Failed to insert remarks: {:?}", e);
-                    continue;
+                if let Some(rem) = &l.remarks {
+                    if let Err(e) = input.db.rt.block_on(
+                        insert_remarks(conn, match_id, rem.vector, rem.width, rem.si)
+                    ) {
+                        error!("Failed to insert remarks: {:?}", e);
+                        continue;
+                    }
+                } else {
+                    warn!("Missing remarks");
                 }
 
                 // Check to see if there is loop info for this loop
-                if let Some(info) = find_loop_info(&loop_info, line, col) {
+                if let Some(info) = &l.info {
                     // Insert IR mix
                     if let Err(e) = input.db.rt.block_on(
-                        insert_ir_mix(conn, match_id, info)
+                        insert_ir_mix(conn, match_id, &info)
                     ) {
                         error!("Failed to insert ir mix: {:?}", e);
                         continue;
@@ -80,15 +66,17 @@ pub fn intern_matches(conn: &mut Transaction<'_, Any>, input: InternInput) -> In
 
                     // Insert loop pattern
                     if let Err(e) = input.db.rt.block_on(
-                        insert_mem_pattern(conn, match_id, info)
+                        insert_mem_pattern(conn, match_id, &info)
                     ) {
                         error!("Failed to insert loop pattern: {:?}", e);
                         continue;
                     }
+                } else {
+                    warn!("Missing loop info");
                 }
 
                 // Check to see if there is debug info
-                if let Some(info) = debug_info.get(&(line, col)) {
+                if let Some(info) = &l.si_status {
                     if let Err(e) = input.db.rt.block_on(
                         insert_si_status(conn, match_id, &info)
                     ) {

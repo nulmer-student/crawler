@@ -26,12 +26,12 @@ pub struct LoopInfo {
 
 #[derive(Debug)]
 pub struct Loop {
-    row: usize,
-    col: usize,
-    post_row: usize, // Row after inserting the pragma
-    info: Option<LoopInfo>,
-    remarks: Option<Remark>,
-    si_status: Option<SIStatus>,
+    pub row: usize,
+    pub col: usize,
+    pub post_row: usize, // Row after inserting the pragma
+    pub info: Option<LoopInfo>,
+    pub remarks: Option<Remark>,
+    pub si_status: Option<SIStatus>,
 }
 
 impl Loop {
@@ -204,6 +204,11 @@ impl Loops {
                 self.loops[*i].remarks = Some(rem);
             }
         }
+    }
+
+    // Iterate over the loops that were vectorizied
+    pub fn matches_iter(&self) -> impl Iterator<Item = &Loop> {
+        return self.loops.iter().filter(|l| l.remarks.is_some())
     }
 }
 

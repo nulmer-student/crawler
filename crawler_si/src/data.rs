@@ -28,7 +28,6 @@ pub struct Remark {
 #[derive(Debug)]
 pub struct Match {
     pub file: PathBuf,
-    pub output: String,
     pub loops: Loops,
 }
 
