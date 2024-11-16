@@ -13,16 +13,13 @@ The crawler depends on the following programs:
 - `find`
 - `tar`
 
-After cloning the repository, run the following command to build the crawler.
-
-``` sh
-cargo build
-```
+Instructions for building each crawler can be found in the crawler's sub
+directory. For example, the SI crawler is located in `crawler_si`.
 
 ## Command Line Usage
 
 The following examples assume you have a valid config located at `config.toml`.
-Mine a repository on disk with the following command:
+Mine a single repository on disk with the following command:
 
 ``` sh
 cargo run -- config.toml mine /path/to/repo
@@ -43,9 +40,6 @@ A sample configuration file for the `si` interface can be found
 [here](example-config.toml). 
 The fields of the configuration file have the following meanings:
 
-- Interface
-  - `name`: Name of the interface to use.
-  - `args`: Table of interface specific configuration options.
 - Miner
   - `threads`: Number of threads to use to mine each repository.
   - `tries`: Maximum number of possible header combinations to try for a single file.

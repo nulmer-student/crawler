@@ -1,14 +1,19 @@
 # Scalar Interpolation
 
-Programs used by the scalar interpolation crawler interface.
+Crawler for "Scalar interpolation"
 
 ## Build Instructions
 
-All programs can be built using the following commands:
+This crawler can be build using
 
 ``` bash
 export LLVM_INSTALL_DIR="/path/to/llvm/bin"
+cargo build
 ```
+
+## Running the Crawler
+
+TODO
 
 ## Building the Cost Model
 
