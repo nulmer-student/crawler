@@ -2,6 +2,7 @@ mod compile;
 mod data;
 mod interface;
 mod intern;
+mod loops;
 mod pattern;
 
 use std::sync::Arc;

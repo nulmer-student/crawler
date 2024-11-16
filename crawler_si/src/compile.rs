@@ -1,16 +1,15 @@
 use crawler::interface::{CompileInput, CompileResult, MatchData};
-use crate::pattern::{PRAGMA, LOOP_PATTERN};
 use crate::data::Match;
+use crate::loops::Loops;
 
 use std::process::{Command, Stdio};
-use std::io::{Error, Write};
+use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::fs;
 use log::error;
 
 /// Get the path of a binary in the provied LLVM directory.
-fn get_compile_bin(bin: &str) -> PathBuf {
+pub fn get_compile_bin(bin: &str) -> PathBuf {
     let dir = PathBuf::from_str(env!("CRAWLER_SI_LLVM")).unwrap();
     return dir.join(bin);
 }
@@ -83,10 +82,10 @@ pub fn try_compile(input: &CompileInput, log: &mut String) -> Result<Vec<u8>, ()
 /// Given a successful header combination, compile the file & find matches.
 pub fn find_match_data(input: &CompileInput, log: &mut String, src: &[u8]) -> CompileResult {
     // Find the innermost loops in the file
-    let loop_lines = find_inner_loops(src);
+    let mut loops = Loops::inner_loops(src);
 
     // Insert SI pragmas before the inner loops
-    let src = match insert_pragma(input.file, loop_lines) {
+    let src = match loops.insert_pragma(input.file) {
         Ok(s) => s,
         Err(e) => {
             error!("Failed to insert pragma: {:?}", e);
@@ -94,78 +93,10 @@ pub fn find_match_data(input: &CompileInput, log: &mut String, src: &[u8]) -> Co
         },
     };
 
-    // Compile to find all information
-    return find_matches(input, src, log);
-}
-
-/// Return a list of line numbers that define innermost loops.
-fn find_inner_loops(src: &[u8]) -> Vec<usize> {
-    // Run the loop finder
-    let loop_finder = env!("CRAWLER_SI_LOOPS");
-    let opt = get_compile_bin("opt");
-    let mut find = Command::new(opt)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .arg(&format!("-load-pass-plugin={}", loop_finder))
-        .arg("-passes=print<inner-loop>")
-        .args(["-o", "/dev/null"])
-        .spawn()
-        .unwrap();
-
-    // Send the source file
-    let mut stdin = find.stdin.take().unwrap();
-    stdin.write_all(src).unwrap();
-    drop(stdin);
-
-    // Get the output
-    let output = find.wait_with_output().unwrap();
-
-    // Parse the results
-    let out = String::from_utf8(output.stderr)
-        .expect("Failed to parse loop finder output");
-    let lines: Vec<_> = out.lines()
-                           .map(|l| l.split(" ").collect::<Vec<_>>()[0])
-                           .filter_map(|s| s.parse::<usize>().ok())
-                           .collect();
-    return lines;
-}
-
-/// Load a file into a String & insert the SI pragmas.
-fn insert_pragma(file: &PathBuf, mut pragma_lines: Vec<usize>) -> Result<String, Error> {
-    // Load the raw file
-    let contents = fs::read_to_string(file)?;
-
-    // Ensure the pragma_lines are in sorted order
-    pragma_lines.sort();
-
-    // Load the file & insert the pragmas where needed
-    let mut acc = "".to_string();
-    let mut pragma_i = 0;
-    for (i, line) in contents.lines().enumerate() {
-        let i = i + 1; // Loop finder uses 1-based indexing
-
-        // Check if this line needs a pragma
-        if let Some(pragma_line) = pragma_lines.get(pragma_i) {
-            if *pragma_line == i {
-                pragma_i += 1;
-                if is_for_loop(line) {
-                    acc.push_str(PRAGMA);
-                }
-            }
-        }
-
-        // Add the line
-        acc.push_str(line);
-        acc.push('\n');
-    }
-
-    return Ok(acc);
-}
-
-/// Check if the given string contains a definition for a "for" loop.
-fn is_for_loop(str: &str) -> bool {
-    return LOOP_PATTERN.is_match(str);
+    // // Compile to find all information
+    // return find_matches(input, src, log);
+    // TODO: Find matches
+    return CompileResult { data: Err(()), to_log: "".to_string() };
 }
 
 /// Find the SI data for a given file.
