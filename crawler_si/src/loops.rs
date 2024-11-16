@@ -1,6 +1,6 @@
 use crate::compile::get_compile_bin;
 use crate::data::{DebugInfo, Remark, SIStatus};
-use crate::pattern::{PRAGMA, LOOP_PATTERN, INFO_PATTERN};
+use crate::pattern::{INFO_PATTERN, LOOP_PATTERN, MATCH_PATTERN, PRAGMA};
 
 use std::collections::HashMap;
 use std::fs;
@@ -197,10 +197,13 @@ impl Loops {
             }
         }
 
-        println!("{:#?}", &self);
-
         // Parse remarks
-        // TODO
+        let remarks = parse_remarks(output);
+        for rem in remarks {
+            if let Some(i) = self.by_pragma.get(&(rem.line as usize)) {
+                self.loops[*i].remarks = Some(rem);
+            }
+        }
     }
 }
 
@@ -300,6 +303,32 @@ fn parse_vector_debug(input: &str) -> DebugInfo {
         let col  = col.parse().unwrap();
 
         acc.insert((line, col), status[i].clone());
+    }
+
+    return acc;
+}
+
+fn parse_remarks(input: &str) -> Vec<Remark> {
+    let mut acc = vec![];
+
+    let pattern = &MATCH_PATTERN;
+    for (_body, args) in pattern
+        .captures_iter(input).map(|c| c.extract::<5>())
+    {
+        let args: [i64; 5] = args
+            .iter()
+            .map(|a| a.parse::<i64>().unwrap())
+            .collect::<Vec<i64>>()
+            .try_into()
+            .unwrap();
+
+        // Add the remark
+        let line   = args[0];
+        let col    = args[1];
+        let vector = args[2];
+        let width  = args[3];
+        let si     = args[4];
+        acc.push(Remark { line, col, vector, width, si });
     }
 
     return acc;

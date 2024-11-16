@@ -17,6 +17,8 @@ pub enum SIStatus {
 
 #[derive(Debug)]
 pub struct Remark {
+    pub line: i64,
+    pub col: i64,
     pub vector: i64,
     pub width: i64,
     pub si: i64,
