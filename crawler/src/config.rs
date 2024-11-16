@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
-use std::collections::{HashSet, HashMap};
+use std::collections::HashSet;
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use chrono::Local;
@@ -17,17 +17,9 @@ lazy_static! {
 /// Top level configuration.
 #[derive(Clone, Debug, Deserialize)]
 pub struct Config {
-    pub interface: Interface,
     pub miner: Miner,
     pub runner: Runner,
     pub database: Database,
-}
-
-/// Configuration for the interface.
-#[derive(Clone, Debug, Deserialize)]
-pub struct Interface {
-    pub name: String,
-    pub args: HashMap<String, String>,
 }
 
 /// Configuration for the miner.

@@ -1,23 +1,19 @@
 # Scalar Interpolation
 
-Programs used by the scalar interpolation crawler interface.
+Crawler for "Scalar interpolation"
 
 ## Build Instructions
 
-All programs can be built using the following commands:
+This crawler can be build using
 
 ``` bash
-mkdir build
-cd build
-cmake .. -DCMAKE_BUILD_TYPE=Debug \
-         -DLT_LLVM_INSTALL_DIR=/path/to/llvm/install/dir
-make
+export LLVM_INSTALL_DIR="/path/to/llvm/bin"
+cargo build
 ```
 
-## Find Inner Loops
+## Running the Crawler
 
-The LLVM pass in the `find_inner_loops` directory prints a list of `(line,
-column)`, where each entry corresponds to an innermost loop.
+TODO
 
 ## Building the Cost Model
 

@@ -264,6 +264,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b82cf0babdbd58558212896d1a4272303a57bdb245c2bf1147185fb45640e70"
 
 [[package]]
+name = "cmake"
+version = "0.1.51"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb1e43aa7fd152b1f968787f7dbcdeb306d1867ff373c69955211876c053f91a"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "colorchoice"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -311,7 +320,7 @@ dependencies = [
 
 [[package]]
 name = "crawler"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "clap",
@@ -327,6 +336,19 @@ dependencies = [
  "sqlx",
  "tokio",
  "toml",
+]
+
+[[package]]
+name = "crawler_si"
+version = "0.2.0"
+dependencies = [
+ "cmake",
+ "crawler",
+ "lazy_static",
+ "log",
+ "regex",
+ "sqlx",
+ "tokio",
 ]
 
 [[package]]

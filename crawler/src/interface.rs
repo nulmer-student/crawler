@@ -1,9 +1,8 @@
-mod si;
-
 use crate::config::Config;
 use crate::runner::db;
 
 use std::any::Any;
+use std::panic::RefUnwindSafe;
 use std::path::PathBuf;
 use std::fs;
 use std::sync::Arc;
@@ -61,6 +60,8 @@ pub struct InternInput<'a> {
 
 pub type InternResult = Result<(), ()>;
 
+pub type AnyInterface = Arc<dyn Interface + Sync + Send + RefUnwindSafe>;
+
 pub trait Interface {
     /// Called once after the search has finished but before any preprocessing /
     /// compilation happens. Does nothing by default.
@@ -87,14 +88,4 @@ pub trait Interface {
     /// Called after all mining has finished with any compilation results.
     /// Intended for adding matches to the database.
     fn intern(&self, input: InternInput) -> InternResult;
-}
-
-/// Get the interface associated with NAME.
-pub fn get_interface(name: &str) -> Arc<dyn Interface + Send + Sync> {
-    match name {
-        "si" => {
-            Arc::new(si::FindVectorSI {}) as Arc<dyn Interface + Send + Sync>
-        },
-        _ => { panic!("No interface with name: '{}'", name) },
-    }
 }

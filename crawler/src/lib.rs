@@ -1,13 +1,14 @@
 #[allow(dead_code)]
 
 mod config;
-mod interface;
+pub mod interface;
 mod miner;
 mod runner;
 
 use config as crawler_config;
 
 use clap::{arg, Command, ArgMatches};
+use interface::AnyInterface;
 use std::path::PathBuf;
 use log;
 use log4rs::config::{Appender, Config, Root};
@@ -104,7 +105,7 @@ fn setup_logging(config: &crawler_config::Config) -> log4rs::Handle {
         .expect("failed to initialize logger");
 }
 
-fn main() {
+pub fn run(interface: AnyInterface) {
     // Parse arguments
     let matches = cli().get_matches();
 
@@ -120,10 +121,10 @@ fn main() {
     match matches.subcommand() {
         Some(("mine", sub)) => {
             let path = get_path(sub, "path");
-            miner::mine_one(path, config);
+            miner::mine_one(path, config, interface);
         },
         Some(("crawl", _sub)) => {
-            runner::crawl(&config);
+            runner::crawl(&config, interface);
         },
         Some(("search", _sub)) => {
             runner::search(&config);
