@@ -96,12 +96,12 @@ impl Loops {
             .expect("Failed to parse loop finder output");
 
         let loops = out.lines()
-               .map(|l| {
+               .filter_map(|l| {
                    let pos = l.split(" ")
                               .collect::<Vec<_>>();
-                   let row = pos[0].parse::<usize>().unwrap();
-                   let col = pos[1].parse::<usize>().unwrap();
-                   Loop::new(row, col)
+                   let row = pos[0].parse::<usize>().ok()?;
+                   let col = pos[1].parse::<usize>().ok()?;
+                   Some(Loop::new(row, col))
                })
                .collect();
 
