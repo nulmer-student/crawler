@@ -1,6 +1,6 @@
 # Crawler
 
-This tool allows a user-supplied code to be run on a large number of GitHub
+This tool allows user-supplied code to be run on a large number of GitHub
 repositories.
 
 ## Building The Crawler
