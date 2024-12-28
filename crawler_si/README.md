@@ -20,7 +20,8 @@ TODO
 The cost model is built with the following commands:
 
 ``` bash
-
+mkdir build
+cd build
 cmake ../llvm \
     -GNinja \
     -DLLVM_OPTIMIZED_TABLEGEN=ON \
