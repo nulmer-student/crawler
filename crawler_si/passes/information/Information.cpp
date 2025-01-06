@@ -20,6 +20,8 @@
 #include "llvm/Transforms/Scalar/LoopRotation.h"
 #include "llvm/Transforms/Utils/LoopSimplify.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstring>
 #include <string>
 #include <unordered_set>
@@ -45,10 +47,19 @@ string format_str(string label, string value, bool last) {
 string InfoData::to_string() {
   string acc;
 
-  acc += "loop info: (";
-  acc += format_str("line", std::to_string(this->location->getLine()),   false);
-  acc += format_str("col",  std::to_string(this->location->getColumn()), false);
+  acc += "loop info: ";
 
+  acc += "[";
+  acc += std::to_string(*this->locations.begin());
+  std::for_each(
+    std::next(this->locations.begin()), this->locations.end(),
+    [&](const int& line){
+      acc += " ";
+      acc += std::to_string(line);
+    });
+  acc += "]";
+
+  acc += " (";
   acc += format_str("ir_count", std::to_string(this->mix.count),       false);
   acc += format_str("ir_mem",   std::to_string(this->mix.mem_count),   false);
   acc += format_str("ir_arith", std::to_string(this->mix.arith_count), false);
@@ -98,12 +109,27 @@ InfoPass::Result InfoPass::run(Function &F, FunctionAnalysisManager &FAM) {
       continue;
 
     // Compute statistics
+    auto locs = this->collect_locations(loop);
     IRMix mix = this->find_ir_mix(loop);
     MemPattern mem = this->find_mem_pattern(loop, FAM);
-    data.push_back(InfoData(loc, mix, mem));
+    data.push_back(InfoData(locs, mix, mem));
   }
 
   return data;
+}
+
+set<int> InfoPass::collect_locations(Loop *loop) {
+  set<int> acc;
+
+  for (auto &bb : loop->getBlocks()) {
+    for (auto &inst : *bb) {
+      DebugLoc loc = inst.getDebugLoc();
+      if (loc)
+        acc.insert(loc->getLine());
+    }
+  }
+
+  return acc;
 }
 
 // Opcode names of arithmetic instructions
