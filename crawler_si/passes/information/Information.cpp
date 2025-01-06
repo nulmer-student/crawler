@@ -1,24 +1,26 @@
 #include "Information.h"
 
-#include <cstring>
-#include <llvm/Analysis/IVDescriptors.h>
-#include <llvm/Analysis/LoopInfo.h>
-#include <llvm/Analysis/ScalarEvolution.h>
-#include <llvm/Analysis/ScalarEvolutionExpressions.h>
-#include <llvm/IR/Constant.h>
-#include <llvm/IR/Constants.h>
-#include <llvm/IR/Function.h>
-#include <llvm/IR/Instruction.h>
-#include <llvm/IR/Instructions.h>
-#include <llvm/IR/Module.h>
+#include "llvm/Analysis/IVDescriptors.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-
+#include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Analysis/ScalarEvolutionExpressions.h"
+#include "llvm/IR/Constant.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugLoc.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/Passes/PassPlugin.h"
+#include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/Passes/PassPlugin.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Transforms/Scalar/LoopRotation.h"
+#include "llvm/Transforms/Utils/LoopSimplify.h"
 
-#include <llvm/Support/Casting.h>
+#include <cstring>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -77,9 +79,6 @@ AnalysisKey InfoPass::Key;
 InfoPass::Result InfoPass::run(Function &F, FunctionAnalysisManager &FAM) {
   Result data;
 
-  // Get the locations of relevent loops from the commandline
-  // Locs loop_locs = this->parse_loop_locs();
-
   // Extract the information for each relevent loop in the IR
   for (auto &BB : F) {
     auto &loop_info = FAM.getResult<LoopAnalysis>(F);
@@ -94,7 +93,7 @@ InfoPass::Result InfoPass::run(Function &F, FunctionAnalysisManager &FAM) {
       continue;
 
     // Has debug location info -> Has not been optimized away
-    DebugLoc loc = BB.begin()->getDebugLoc();
+    DebugLoc loc = BB.getFirstNonPHIOrDbg()->getDebugLoc();
     if (loc.get() == nullptr)
       continue;
 
@@ -196,18 +195,22 @@ llvm::PassPluginLibraryInfo getInnerLoopPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, "Info", LLVM_VERSION_STRING,
           [](PassBuilder &PB) {
             PB.registerPipelineParsingCallback(
-                [](StringRef Name, FunctionPassManager &FPM,
-                   ArrayRef<PassBuilder::PipelineElement>) {
-                  if (Name == "print<info>") {
-                    FPM.addPass(Info::InfoPassPrinter());
-                    return true;
-                  }
-                  return false;
-                });
+              [](StringRef Name, FunctionPassManager &FPM,
+                 ArrayRef<PassBuilder::PipelineElement>) {
+                if (Name == "print<info>") {
+                  FPM.addPass(Info::InfoPassPrinter());
+                  return true;
+                }
+                return false;
+              });
+            PB.registerVectorizerStartEPCallback(
+              [](FunctionPassManager &FPM, OptimizationLevel Opt) {
+                FPM.addPass(Info::InfoPassPrinter());
+              });
             PB.registerAnalysisRegistrationCallback(
-                [](FunctionAnalysisManager &FAM) {
-                  FAM.registerPass([&] { return Info::InfoPass(); });
-                });
+              [](FunctionAnalysisManager &FAM) {
+                FAM.registerPass([&] { return Info::InfoPass(); });
+              });
           }};
 }
 
