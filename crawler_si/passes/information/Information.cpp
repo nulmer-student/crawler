@@ -124,8 +124,11 @@ set<int> InfoPass::collect_locations(Loop *loop) {
   for (auto &bb : loop->getBlocks()) {
     for (auto &inst : *bb) {
       DebugLoc loc = inst.getDebugLoc();
-      if (loc)
-        acc.insert(loc->getLine());
+      if (loc) {
+        int line = loc->getLine();
+        if (line != 0)
+          acc.insert(loc->getLine());
+      }
     }
   }
 
