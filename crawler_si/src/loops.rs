@@ -222,12 +222,18 @@ fn parse_loop_info(input: &str) -> Vec<LoopInfo> {
     let mut acc = vec![];
 
     let pattern = &INFO_PATTERN;
-    for (_body, [line, col, ir_count, ir_mem, ir_arith, ir_other, pat_start, pat_step])
-        in pattern.captures_iter(input).map(|c| c.extract::<8>()) {
+    for (_body, [lines, ir_count, ir_mem, ir_arith, ir_other, pat_start, pat_step])
+        in pattern.captures_iter(input).map(|c| c.extract::<7>()) {
+
+        let line = lines.trim()
+                        .split(" ")
+                        .filter_map(|part| part.parse::<i64>().ok())
+                        .min()
+                        .unwrap_or_default();
 
         acc.push(LoopInfo {
-            line: line.parse::<i64>().unwrap(),
-            col: col.parse::<i64>().unwrap(),
+            line,
+            col: -1,
             ir_count: ir_count.parse::<i64>().unwrap(),
             ir_mem: ir_mem.parse::<i64>().unwrap(),
             ir_arith: ir_arith.parse::<i64>().unwrap(),
