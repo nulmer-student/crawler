@@ -7,7 +7,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::io::{Error, Write};
-use log::{debug, error};
+use log::debug;
 use regex::Regex;
 
 /// Values returned from the loop information pass
@@ -146,48 +146,18 @@ impl Loops {
         return Ok(acc);
     }
 
-    /// Find loop information using the "Information" pass
-    pub fn loop_info(&mut self, src: &[u8], _log: &mut String) -> Result<(), ()> {
-        // Spawn opt with the information pass
-        let info_pass = env!("CRAWLER_SI_INFO");
-        let opt = get_compile_bin("opt");
-        let mut cmd = Command::new(opt)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .arg(&format!("-load-pass-plugin={}", info_pass))
-            .arg("-passes=print<info>")
-            .args(["-o", "/dev/null"])
-            .spawn()
-            .unwrap();
-
-        // Send the optimized code to stdin
-        let mut stdin = cmd.stdin.take().unwrap();
-        stdin.write_all(src).unwrap();
-        drop(stdin);
-
-        // Get the output
-        let output = cmd.wait_with_output().unwrap();
-        let info = match String::from_utf8(output.stderr) {
-            Ok(s) => s,
-            Err(e) => {
-                error!("Failed to read information output: {:?}", e);
-                return Err(());
-            },
-        };
-
-        // Parse the output into loop info structs
-        let loop_info = parse_loop_info(&info);
+    /// Collect all information after optimization has occured.
+    pub fn opt_info(&mut self, output: &str, _log: &mut String) {
+        // Collect the instruction counts for each loop
+        let loop_info = parse_loop_info(output);
+        debug!("{:?}", loop_info);
         for li in loop_info {
-            if let Some(index) = self.by_original.get(&(li.line as usize)) {
+            if let Some(index) = self.by_pragma.get(&(li.line as usize)) {
+                debug!("Loop info for loop at line {}", li.line);
                 self.loops[*index].info = Some(li);
             }
         }
 
-        return Ok(());
-    }
-
-    pub fn opt_info(&mut self, output: &str, log: &mut String) {
         // Find the SI status & match with loops
         let debug_info = parse_vector_debug(output);
         for ((row, _col), status) in debug_info.iter() {
@@ -222,12 +192,18 @@ fn parse_loop_info(input: &str) -> Vec<LoopInfo> {
     let mut acc = vec![];
 
     let pattern = &INFO_PATTERN;
-    for (_body, [line, col, ir_count, ir_mem, ir_arith, ir_other, pat_start, pat_step])
-        in pattern.captures_iter(input).map(|c| c.extract::<8>()) {
+    for (_body, [lines, ir_count, ir_mem, ir_arith, ir_other, pat_start, pat_step])
+        in pattern.captures_iter(input).map(|c| c.extract::<7>()) {
+
+        let line = lines.trim()
+                        .split(" ")
+                        .filter_map(|part| part.parse::<i64>().ok())
+                        .min()
+                        .unwrap_or_default();
 
         acc.push(LoopInfo {
-            line: line.parse::<i64>().unwrap(),
-            col: col.parse::<i64>().unwrap(),
+            line,
+            col: -1,
             ir_count: ir_count.parse::<i64>().unwrap(),
             ir_mem: ir_mem.parse::<i64>().unwrap(),
             ir_arith: ir_arith.parse::<i64>().unwrap(),

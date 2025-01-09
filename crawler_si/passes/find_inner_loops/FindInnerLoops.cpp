@@ -2,6 +2,7 @@
 
 #include <llvm/Analysis/LoopInfo.h>
 #include <llvm/IR/Module.h>
+#include <map>
 #include <vector>
 
 #include "llvm/IR/DebugLoc.h"
@@ -45,8 +46,20 @@ InnerLoopPass::Result InnerLoopPass::run(Module &M, ModuleAnalysisManager &MAM) 
         continue;
 
       // Add the location of the first instruction
-      DebugLoc Loc = BB.getFirstNonPHI()->getDebugLoc();
-      Loops.push_back(Loc);
+      std::map<int, DebugLoc> acc;
+
+      for (auto &bb : L->getBlocks()) {
+        for (auto &inst : *bb) {
+          DebugLoc loc = inst.getDebugLoc();
+          if (loc) {
+            int line = loc->getLine();
+            if (line != 0)
+              acc[loc->getLine()] = loc;
+          }
+        }
+      }
+
+      Loops.push_back(acc.begin()->second);
     }
   }
 

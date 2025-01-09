@@ -93,15 +93,6 @@ pub fn find_match_data(input: &CompileInput, log: &mut String, src: &[u8]) -> Co
         },
     };
 
-    // Find the loop info before optimization
-    match loops.loop_info(src, log) {
-        Ok(_) => {},
-        Err(_) => {
-            error!("Failed to find loop info");
-            return CompileResult { data: Err(()), to_log: log.to_string() };
-        }
-    }
-
     // Compile with SI & find remarks
     let Ok(output) = find_matches(input, pragma_src, log) else {
         return CompileResult { data: Err(()), to_log: log.to_string() };
@@ -121,17 +112,19 @@ pub fn find_match_data(input: &CompileInput, log: &mut String, src: &[u8]) -> Co
 
 /// Find the SI data for a given file.
 fn find_matches(input: &CompileInput, src: String, log: &mut String) -> Result<String, ()> {
+    let info_pass = env!("CRAWLER_SI_INFO");
     let mut compile = Command::new("timeout")
         .arg("10")
         .arg(get_compile_bin("clang"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .args(["-c", "-x", "c"])
+        .args(["-c", "-x", "c", "-g"])
         .args(format_headers(input.headers))
         .args(["-o", "-"])
         .args(["-emit-llvm", "-O3", "-Rpass=loop-vectorize"])
         .args(["-mllvm", "-debug-only=loop-vectorize"])
+        .arg(&format!("-fpass-plugin={}", info_pass))
         .arg("-")
         .spawn()
         .unwrap();

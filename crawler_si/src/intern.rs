@@ -173,17 +173,6 @@ async fn insert_remarks(conn: &mut Transaction<'_, Any>, match_id: i64, vec: i64
     return Ok(());
 }
 
-/// Search a list of LoopInfo for a loop that matches LINE & COL.
-fn find_loop_info(loop_info: &[LoopInfo], line: i64, _col: i64) -> Option<&LoopInfo> {
-    for info in loop_info {
-        if info.line == line {
-            return Some(&info);
-        }
-    }
-
-    return None;
-}
-
 /// Insert the IR mix into the database.
 async fn insert_ir_mix(conn: &mut Transaction<'_, Any>, match_id: i64, info: &LoopInfo) -> Result<(), sqlx::Error> {
     sqlx::query::<Any>("insert into ir_mix values (?, ?, ?, ?, ?)")

@@ -1,24 +1,28 @@
 #include "Information.h"
 
-#include <cstring>
-#include <llvm/Analysis/IVDescriptors.h>
-#include <llvm/Analysis/LoopInfo.h>
-#include <llvm/Analysis/ScalarEvolution.h>
-#include <llvm/Analysis/ScalarEvolutionExpressions.h>
-#include <llvm/IR/Constant.h>
-#include <llvm/IR/Constants.h>
-#include <llvm/IR/Function.h>
-#include <llvm/IR/Instruction.h>
-#include <llvm/IR/Instructions.h>
-#include <llvm/IR/Module.h>
+#include "llvm/Analysis/IVDescriptors.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/ScalarEvolution.h"
-
+#include "llvm/Analysis/ScalarEvolution.h"
+#include "llvm/Analysis/ScalarEvolutionExpressions.h"
+#include "llvm/IR/Constant.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugLoc.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
-#include "llvm/Passes/PassPlugin.h"
+#include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/Passes/PassPlugin.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Transforms/Scalar/LoopRotation.h"
+#include "llvm/Transforms/Utils/LoopSimplify.h"
 
-#include <llvm/Support/Casting.h>
+#include <algorithm>
+#include <cstring>
+#include <iostream>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -43,10 +47,19 @@ string format_str(string label, string value, bool last) {
 string InfoData::to_string() {
   string acc;
 
-  acc += "loop info: (";
-  acc += format_str("line", std::to_string(this->location->getLine()),   false);
-  acc += format_str("col",  std::to_string(this->location->getColumn()), false);
+  acc += "loop info: ";
 
+  acc += "[";
+  acc += std::to_string(*this->locations.begin());
+  std::for_each(
+    std::next(this->locations.begin()), this->locations.end(),
+    [&](const int& line){
+      acc += " ";
+      acc += std::to_string(line);
+    });
+  acc += "]";
+
+  acc += " (";
   acc += format_str("ir_count", std::to_string(this->mix.count),       false);
   acc += format_str("ir_mem",   std::to_string(this->mix.mem_count),   false);
   acc += format_str("ir_arith", std::to_string(this->mix.arith_count), false);
@@ -77,9 +90,6 @@ AnalysisKey InfoPass::Key;
 InfoPass::Result InfoPass::run(Function &F, FunctionAnalysisManager &FAM) {
   Result data;
 
-  // Get the locations of relevent loops from the commandline
-  // Locs loop_locs = this->parse_loop_locs();
-
   // Extract the information for each relevent loop in the IR
   for (auto &BB : F) {
     auto &loop_info = FAM.getResult<LoopAnalysis>(F);
@@ -94,17 +104,35 @@ InfoPass::Result InfoPass::run(Function &F, FunctionAnalysisManager &FAM) {
       continue;
 
     // Has debug location info -> Has not been optimized away
-    DebugLoc loc = BB.begin()->getDebugLoc();
+    DebugLoc loc = BB.getFirstNonPHIOrDbg()->getDebugLoc();
     if (loc.get() == nullptr)
       continue;
 
     // Compute statistics
+    auto locs = this->collect_locations(loop);
     IRMix mix = this->find_ir_mix(loop);
     MemPattern mem = this->find_mem_pattern(loop, FAM);
-    data.push_back(InfoData(loc, mix, mem));
+    data.push_back(InfoData(locs, mix, mem));
   }
 
   return data;
+}
+
+set<int> InfoPass::collect_locations(Loop *loop) {
+  set<int> acc;
+
+  for (auto &bb : loop->getBlocks()) {
+    for (auto &inst : *bb) {
+      DebugLoc loc = inst.getDebugLoc();
+      if (loc) {
+        int line = loc->getLine();
+        if (line != 0)
+          acc.insert(loc->getLine());
+      }
+    }
+  }
+
+  return acc;
 }
 
 // Opcode names of arithmetic instructions
@@ -146,13 +174,13 @@ IRMix InfoPass::find_ir_mix(Loop *loop) {
 
 MemPattern InfoPass::find_mem_pattern(Loop *loop, FunctionAnalysisManager &FAM) {
   MemPattern pattern;
-  Function *fn = loop->getHeader()->getFirstNonPHI()->getFunction();
+  Function *fn = loop->getHeader()->getFirstNonPHIOrDbg()->getFunction();
   ScalarEvolution &se = FAM.getResult<ScalarEvolutionAnalysis>(*fn);
 
   // Find the induction variable
   PHINode *iv = loop->getInductionVariable(se);
   if (iv == nullptr) {
-    errs() << "Failed to find induction variable\n";
+    std::cerr << "Failed to find induction variable\n";
     return pattern;
   }
 
@@ -184,7 +212,7 @@ PreservedAnalyses InfoPassPrinter::run(Function &F, FunctionAnalysisManager &FAM
 
   // Print out the matched locations
   for (auto &info : data) {
-    errs() << info.to_string() << "\n";
+    std::cerr << info.to_string() << "\n";
   }
 
   return PreservedAnalyses::all();
@@ -196,18 +224,22 @@ llvm::PassPluginLibraryInfo getInnerLoopPluginInfo() {
   return {LLVM_PLUGIN_API_VERSION, "Info", LLVM_VERSION_STRING,
           [](PassBuilder &PB) {
             PB.registerPipelineParsingCallback(
-                [](StringRef Name, FunctionPassManager &FPM,
-                   ArrayRef<PassBuilder::PipelineElement>) {
-                  if (Name == "print<info>") {
-                    FPM.addPass(Info::InfoPassPrinter());
-                    return true;
-                  }
-                  return false;
-                });
+              [](StringRef Name, FunctionPassManager &FPM,
+                 ArrayRef<PassBuilder::PipelineElement>) {
+                if (Name == "print<info>") {
+                  FPM.addPass(Info::InfoPassPrinter());
+                  return true;
+                }
+                return false;
+              });
+            PB.registerVectorizerStartEPCallback(
+              [](FunctionPassManager &FPM, OptimizationLevel Opt) {
+                FPM.addPass(Info::InfoPassPrinter());
+              });
             PB.registerAnalysisRegistrationCallback(
-                [](FunctionAnalysisManager &FAM) {
-                  FAM.registerPass([&] { return Info::InfoPass(); });
-                });
+              [](FunctionAnalysisManager &FAM) {
+                FAM.registerPass([&] { return Info::InfoPass(); });
+              });
           }};
 }
 

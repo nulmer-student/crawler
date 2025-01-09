@@ -20,9 +20,7 @@ lazy_static! {
 
     pub static ref INFO_PATTERN: Regex = {
         let mut pattern = "".to_string();
-        pattern.push_str(r"loop info: \(");
-        pattern.push_str(r"line: (\d+), ");
-        pattern.push_str(r"col: (\d+), ");
+        pattern.push_str(r"loop info: \[([^\]]+)\] \(");
         pattern.push_str(r"ir_count: (\d+), ");
         pattern.push_str(r"ir_mem: (\d+), ");
         pattern.push_str(r"ir_arith: (\d+), ");

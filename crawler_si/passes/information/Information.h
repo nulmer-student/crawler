@@ -8,7 +8,7 @@
 #include <llvm/IR/DebugLoc.h>
 #include <optional>
 #include <vector>
-#include <unordered_set>
+#include <set>
 
 using namespace std;
 using namespace llvm;
@@ -46,10 +46,10 @@ public:
 
 class InfoData {
 public:
-  InfoData(DebugLoc location, IRMix mix, MemPattern pattern)
-    : location(location), mix(mix), pattern(pattern){};
+  InfoData(set<int> locations, IRMix mix, MemPattern pattern)
+    : locations(locations), mix(mix), pattern(pattern){};
 
-  DebugLoc location;
+  set<int> locations;
   IRMix mix;
   MemPattern pattern;
 
@@ -66,9 +66,8 @@ private:
   static AnalysisKey Key;
   friend struct AnalysisInfoMixin<InfoPass>;
 
-  // Find the locations of relevent loops
-  using Locs = std::unordered_set<int>;
-  Locs parse_loop_locs();
+  // Collect the locations of every instruction in a loop
+  set<int> collect_locations(Loop *loop);
 
   // Compute the instruction mix of a loop
   IRMix find_ir_mix(Loop *loop);
