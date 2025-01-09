@@ -21,8 +21,8 @@
 #include "llvm/Transforms/Utils/LoopSimplify.h"
 
 #include <algorithm>
-#include <cstddef>
 #include <cstring>
+#include <iostream>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -174,13 +174,13 @@ IRMix InfoPass::find_ir_mix(Loop *loop) {
 
 MemPattern InfoPass::find_mem_pattern(Loop *loop, FunctionAnalysisManager &FAM) {
   MemPattern pattern;
-  Function *fn = loop->getHeader()->getFirstNonPHI()->getFunction();
+  Function *fn = loop->getHeader()->getFirstNonPHIOrDbg()->getFunction();
   ScalarEvolution &se = FAM.getResult<ScalarEvolutionAnalysis>(*fn);
 
   // Find the induction variable
   PHINode *iv = loop->getInductionVariable(se);
   if (iv == nullptr) {
-    errs() << "Failed to find induction variable\n";
+    std::cerr << "Failed to find induction variable\n";
     return pattern;
   }
 
@@ -212,7 +212,7 @@ PreservedAnalyses InfoPassPrinter::run(Function &F, FunctionAnalysisManager &FAM
 
   // Print out the matched locations
   for (auto &info : data) {
-    errs() << info.to_string() << "\n";
+    std::cerr << info.to_string() << "\n";
   }
 
   return PreservedAnalyses::all();
