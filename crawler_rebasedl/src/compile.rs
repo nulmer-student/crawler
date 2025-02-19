@@ -7,6 +7,7 @@ use std::path::PathBuf;
 
 use crawler::interface::{CompileInput, CompileResult};
 
+use crate::data::Match;
 use crate::output_parser;
 
 /// Return a compilation error.
@@ -128,5 +129,6 @@ pub fn try_compile(input: &CompileInput, log: &mut String) -> CompileResult {
 
     // Parse the results
     let data = output_parser::parse(pass_output);
-    CompileResult { data: Ok(Box::new(data)), to_log: log.to_string() }
+    let m = Match { file: input.file.into(), data};
+    CompileResult { data: Ok(Box::new(m)), to_log: log.to_string() }
 }

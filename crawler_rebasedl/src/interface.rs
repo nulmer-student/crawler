@@ -3,7 +3,7 @@ use crawler::interface::{
     InternInput, InternResult, PreInput, PreprocessResult
 };
 
-use crate::compile::try_compile;
+use crate::{compile::try_compile, intern::intern_matches};
 
 use log::error;
 
@@ -20,6 +20,19 @@ impl Interface for RebaseDL {
                  path        text,
                  primary key (file_id),
                  foreign key (repo_id) references repos)")
+                .execute(&input.db.pool).await?;
+
+            let _ = sqlx::query(
+                "create table if not exists matches (
+                 match_id    bigint,
+                 file_id     bigint,
+                 line        int,
+                 col         int,
+                 maf         float,
+                 cu          float,
+                 cb          float,
+                 primary key (match_id),
+                 foreign key (file_id) references files)")
                 .execute(&input.db.pool).await?;
 
             return Ok(());
@@ -56,7 +69,7 @@ impl Interface for RebaseDL {
         };
 
         // Intern the matches
-        // TODO
+        let result = intern_matches(&mut conn, input.clone());
 
         // Commit the transaction
         input.db.rt.block_on(async {
@@ -66,6 +79,6 @@ impl Interface for RebaseDL {
             }
         });
 
-        return Ok(());
+        return result;
     }
 }

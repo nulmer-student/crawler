@@ -2,6 +2,7 @@ mod compile;
 mod interface;
 mod data;
 mod output_parser;
+mod intern;
 
 use std::sync::Arc;
 
