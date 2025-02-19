@@ -7,6 +7,8 @@ use std::path::PathBuf;
 
 use crawler::interface::{CompileInput, CompileResult};
 
+use crate::output_parser;
+
 /// Return a compilation error.
 fn compile_fail(log: &mut String) -> CompileResult {
     CompileResult { data: Err(()), to_log: log.to_string() }
@@ -123,13 +125,8 @@ pub fn try_compile(input: &CompileInput, log: &mut String) -> CompileResult {
         Ok(out) => out,
         Err(_) => return compile_fail(log),
     };
-    // println!("{:?}:\n{}", input.file, pass_output);
-    if pass_output != "" {
-        println!("{}", pass_output);
-    }
 
     // Parse the results
-    // TODO
-
-    CompileResult { data: Ok(Box::new(())), to_log: log.to_string() }
+    let data = output_parser::parse(pass_output);
+    CompileResult { data: Ok(Box::new(data)), to_log: log.to_string() }
 }

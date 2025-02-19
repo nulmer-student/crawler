@@ -1,5 +1,7 @@
 mod compile;
 mod interface;
+mod data;
+mod output_parser;
 
 use std::sync::Arc;
 
