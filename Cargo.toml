@@ -4,4 +4,5 @@ members = [
     "crawler",
     "crawler_si",
     "crawler_rebasedl",
+    "crawler_kernel_farer",
 ]
